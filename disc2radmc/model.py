@@ -1,7 +1,7 @@
 import numpy as np
 import cmath as cma
 import os,sys
-from debris_radmc3d.constants import *
+from disc2radmc.constants import *
 from astropy.io import fits
 from astropy.io.votable import parse
 
@@ -55,7 +55,7 @@ class simulation:
         else:
             os.system('radmc3d mctherm > mctherm.log')
 
-    def simimage(self, dpc=1., imagename='', wavelength=880., Npix=256, dpix=0.05, inc=0., PA=0., offx=0.0, offy=0.0, X0=0., Y0=0., tag='', omega=0.0, Npixf=-1, fstar=-1.0, background_args=[]):
+    def simimage(self, dpc=1., imagename='', wavelength=880., Npix=256, dpix=0.05, inc=0., PA=0., offx=0.0, offy=0.0, X0=0., Y0=0., tag='', omega=0.0, Npixf=-1, fstar=-1.0, background_args=[], primary_beam=None):
         # X0, Y0, stellar position (e.g. useful if using a mosaic)
         # images: array of names for images produced at wavelengths
         # wavelgnths: wavelengths at which to produce image in um
@@ -65,17 +65,19 @@ class simulation:
             Npixf=Npix
 
         sau=Npix*dpix*dpc
-        print('image size = %f'%sau)
+        print('image size = %1.1e au'%sau)
+        image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f  npix %1.0f  lambda %1.5f sizeau %1.5f  secondorder'%(inc,omega, PA-90.0, Npix, wavelength, sau)
         if self.verbose:
-            os.system('radmc3d image incl '+str(inc)+' phi '+str(omega)+' posang '+str(PA-90.0)+'  npix '+str(Npix)+' lambda '+str(wavelength)+' sizeau '+str(sau)+' secondorder')
+            print(image_command)
+            os.system(image_command)
         else:
-            os.system('radmc3d image incl '+str(inc)+' phi '+str(omega)+' posang '+str(PA-90.0)+'  npix '+str(Npix)+' lambda '+str(wavelength)+' sizeau '+str(sau)+' secondorder  > simimgaes.log')
+            os.system(image_command+'  > simimgaes.log')
 
         pathin ='image_'+imagename+'_'+tag+'.out'
         pathout='image_'+imagename+'_'+tag+'.fits'
         os.system('mv image.out '+pathin)
         
-        convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag)
+        convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam)
         os.system('mv '+pathout+' ./images')
 
     
@@ -712,27 +714,58 @@ def Intextpol(x,y,xi):
 
 ### functions to manipulate images
 
-def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y0=0.0, omega=0.0, fstar=-1.0, vel=False, continuum_subtraction=False, background_args=[], tag=''):
+def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y0=0.0, omega=0.0, fstar=-1.0, vel=False, continuum_subtraction=False, background_args=[], tag='', primary_beam=None):
 
     ### load image
     image_in_jypix, nx, ny, nf, lam, pixdeg_x, pixdeg_y = load_image(path_image, dpc)
 
-    ### manipulate central flux
     istar, jstar=star_pix(nx, omega)
+    ### manipulate central flux
     if fstar>=0.0: # change stellar flux given value of fstar.
-         image_in_jypix[:, :, jstar,istar]=fstar
+        image_in_jypix[:, :, jstar,istar]=fstar
     print('Fstar=', image_in_jypix[0, 0, jstar,istar])
 
     ### shift image if necessary
     image_in_jypix_shifted= shift_image(image_in_jypix, mx, my, pixdeg_x, pixdeg_y, omega=omega)
+    # PAD IMAGE
+    image_in_jypix_shifted=fpad_image(image_in_jypix_shifted, Npixf, Npixf, nx, ny)
 
+    # add background sources
+    if len(background_args) != 0:
+        for iback in background_args:
+            image_in_jypix_shifted=image_in_jypix_shifted + background_object(*iback)
+
+        
+    
+    if primary_beam is not None:
+        pbfits=fits.open(primary_beam)
+        pb=pbfits[0].data[0,0,:,:] # pb image
+        header_pb = pbfits[0].header # header
+        del header_pb['Origin'] # necessary due to a comment that CASA adds automatically
+
+        # check if pixel sizes are the same
+        assert abs(pixdeg_x-header_pb['CDELT2'])/pixdeg_x <0.01, 'pixel size of primary beam is %1.7e and image is %1.7e. Make sure they are the same within 1\%'%(pixdeg_x,header_pb['CDELT2'])
+
+        # check if primary beam needs to be pad
+        if header_pb['NAXIS1']<Npixf or header_pb['NAXIS2']<Npixf:
+            pb=fpad_image(pb, Npixf, Npixf,header_pb['NAXIS1'] , header_pb['NAXIS2'])
+
+        # multiply by primary beam and set nans to zero
+        image_in_jypix_shifted=image_in_jypix_shifted*pb
+        inans= np.isnan(image_in_jypix_shifted)
+        image_in_jypix_shifted[inans]=0.0
+        
     lam0=lam[0] # um   
     reffreq=cc/(lam0*1.0e-4) # Hz
 
+    ### Single image
     if nf==1: # single image
         flux = np.sum(image_in_jypix_shifted[0,0,:,:])
         print("flux [Jy] = ", flux)
-    else: # image cube
+
+
+    ### image cube
+    else: 
         delta_freq= (lam[0] - lam[1])*cc*1.0e4/lam[nf//2]**2.0 # Hz
         delta_velocity = (lam[1] - lam[0])*cc*1e-5/lam0 # km/s
 
@@ -744,8 +777,9 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
                 image_in_jypix_shifted[0,k,:,:]= image_in_jypix_shifted[0,k,:,:] - Cont 
         flux = np.sum(image_in_jypix_shifted[0,:,:,:])*delta_velocity
         print("flux [Jy km/s] = ", flux)
-  
-        
+
+    
+
     ### BUILD HEADER
 
 
@@ -832,13 +866,7 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     # Make a FITS file!
     #
 
-    # PAD IMAGE
-    image_in_jypix_shifted=fpad_image(image_in_jypix_shifted, Npixf, Npixf, nx, ny)
-
-    if len(background_args) != 0:
-        for iback in background_args:
-            image_in_jypix_shifted=image_in_jypix_shifted + background_object(*iback)
-
+   
     image_in_jypix_float=image_in_jypix_shifted.astype(np.float32)
     fits.writeto(path_fits, image_in_jypix_float, header, output_verify='fix')
 
