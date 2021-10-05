@@ -540,6 +540,11 @@ class physical_grid:
         default_thmin=0.03/10.
         default_thmax=0.1*3
 
+        self.axisym=axisym
+        self.logtheta=logtheta
+        self.logr=logr
+        self.mirror=mirror
+        
         if rmin is not None:
             self.rmin=rmin if rmin>0. else default_rmin
         else:  self.rmin=default_rmin
@@ -553,7 +558,7 @@ class physical_grid:
         else: self.thmin=default_thmin
 
         if thmax is not None:
-            self.thmax=thmax if thmax>thmin and thmax<=np.pi/2. else default_thmax
+            self.thmax=thmax if thmax<=np.pi/2 and (thmax>self.thmin or not self.logtheta) else default_thmax
         else: self.thmax=default_thmax
         
         if Nr is not None:
@@ -564,12 +569,7 @@ class physical_grid:
             self.Nth=int(Nth) if Nth>0 else default_Nth
         else: self.Nth=default_Nth
         
-        self.axisym=axisym
-        self.logtheta=logtheta
-        self.logr=logr
-        self.mirror=mirror
-        
-        if axisym:
+        if self.axisym:
             self.Nphi=1
         else:
             if Nphi is not None:
@@ -594,6 +594,7 @@ class physical_grid:
             self.thedge[1:]=np.logspace(np.log10(self.thmin), np.log10(self.thmax), self.Nth)
         else:
             self.thedge=np.linspace(0., self.thmax, self.Nth+1)
+            self.thmin=self.thedge[1]
 
         self.dth=self.thedge[1:]-self.thedge[:-1]
         self.th=(self.thedge[1:]+self.thedge[:-1])/2
