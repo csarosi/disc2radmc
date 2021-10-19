@@ -11,7 +11,7 @@ class simulation:
     A class to run radmc3d and convert output files 
     """
 
-    def __init__(self,  nphot=1000000, nphot_scat=1000000, nphot_spec=10000, nphot_mono=10000, scattering_mode=1, modified_random_walk=0, istar_sphere=0, tgas_eq_tdust=1, incl_lines=0, setthreads=4, rto_style=3, verbose=True):
+    def __init__(self,  nphot=1000000, nphot_scat=1000000, nphot_spec=10000, nphot_mono=10000, scattering_mode=2, modified_random_walk=0, istar_sphere=0, tgas_eq_tdust=1, incl_lines=0, setthreads=4, rto_style=3, verbose=True):
 
         self.nphot=nphot
         self.nphot_scat=nphot_scat
@@ -419,13 +419,13 @@ class star:
                 w2=abs(T2-self.Tstar)
                 spectrum=spectrum1*w1+spectrum2*w2/(w1+w2)
 
-        ### compute flux at 1pc
-        # spectrum is in units of erg/cm2/s/A
-        # we want to convert Flambda to Fnu so we need to multiply by lambda**2/c
-        spectrum_fnu=spectrum*(self.lams*1.0e4)**2.0/cc_a # now in units of erg/cm2/s/Hz
+            ### compute flux at 1pc
+            # spectrum is in units of erg/cm2/s/A
+            # we want to convert Flambda to Fnu so we need to multiply by lambda**2/c
+            spectrum_fnu=spectrum*(self.lams*1.0e4)**2.0/cc_a # now in units of erg/cm2/s/Hz
 
-        ## flux at 1pc
-        self.flux_1pc=spectrum_fnu*(self.Rstar*R_sun/pc)**2.
+            ## flux at 1pc
+            self.flux_1pc=spectrum_fnu*(self.Rstar*R_sun/pc)**2.
 
         
 
