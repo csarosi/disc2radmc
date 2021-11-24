@@ -36,6 +36,7 @@ class simulation:
         radmc_file.write('istar_sphere= %1.0f \n'%self.istar_sphere)
         radmc_file.write('tgas_eq_tdust=%1.0f \n'%self.tgas_eq_tdust)
         radmc_file.write('incl_lines = %1.0f \n'%self.incl_lines)
+        radmc_file.write('lines_mode=1 \n')
         radmc_file.write('setthreads = %1.0f \n'%self.setthreads)
         radmc_file.write('rto_style = %1.0f'%self.rto_style )
         radmc_file.close()
@@ -45,8 +46,8 @@ class simulation:
 
     ### methods
     # def mctherm
-    # def make_image(self):
-    # def make_cube(self):
+    # def simimage(self):
+    # def simcube(self):
     # def make_sed(self):
 
     def mctherm(self):
@@ -80,56 +81,98 @@ class simulation:
         convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam)
 
     
-    
-    
+    def simcube(self, dpc=1., imagename='', mol=1, line=1, vmax=30., Nnu=20, Npix=256, dpix=0.05, inc=0., PA=0., offx=0., offy=0., X0=0., Y0=0., tag='', omega=0., Npixf=-1, fstar=-1., background_args=[], primary_beam=None, vel=False, continuum_subtraction=False):
 
-# class gas: # needs a quick way to redefine and save
-#     """
-#     A class used to define the gas densities and velocities
-#     """
-   
+        if Npixf==-1:
+            Npixf=Npix
 
-class dust_densities:
-    
-    """
-    A class used to define the dust densities.
-    
-    """
-    
-    def __init__(self, grid=None, ddist=None, function_sigma=None, par_sigma=None, h=0.05):
+        transition='iline '+str(line)+' imolspec '+str(mol)+' widthkms %1.5f '%(vmax)+' vkms 0.0 linenlam '+str(Nnu)
+        sau=Npix*dpix*dpc
+        image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f '%(inc,omega, PA-90.0)+transition+' npix %1.0f  sizeau %1.5f  doppcatch noscat'%(Npix, sau)
+        if self.verbose:
+            print('image size = %1.1e au'%sau)
+            print(image_command)
+            os.system(image_command)
+        else:
+            os.system(image_command+'  > simimgaes.log')
 
-        """
-        funtion_sigma: function that defines the surface density. The first two arguments are two nd numpy arrays for rho and z
-        """
+
+        pathin ='image_'+imagename+'_'+tag+'.out'
+        pathout='images/image_'+imagename+'_'+tag+'.fits'
+        os.system('mv image.out '+pathin)
         
-        assert grid is not None, "grid object needed to define dust density distribution"
-        assert ddist is not None, "dust size distribution needed to define dust density distribution"
-        assert function_sigma is not None, "surface density profile needed to define dust density distribution"
+        convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, continuum_subtraction=continuum_subtraction, background_args=background_args, tag=tag, primary_beam=primary_beam)
 
-        ## strange cases ntheta=1, mirror, etc
+
+class gas:
+    
+    """
+    A class used to define the gas species, densities and velocities
+    """
+
+    def __init__(self, gas_species=None, star=None, grid=None, Masses=None, masses=None, functions_sigma=None, pars_sigma=None, h=0.05, turbulence=False, alpha_turb=None, functions_rhoz=None, mu=28. ):
+        assert gas_species is not None, "Gas species need to be defined"
+        assert star is not None, "star needs to be defined as its mass will set the rotation speed"
+        assert grid is not None, "grid object needed to define gas density distribution"
+        assert functions_sigma is not None, "surface density profile needed to define gas density distribution"
+        assert pars_sigma is not None, "parameters for the surface density profile needed to define gas density distribution"
+        assert Masses is not None, "Total gas mass of each species not given"
+        assert masses is not None, "molecular mass of each species not given"
+
+        if turbulence:
+            assert alpha_turb is not None, "alpha needs to be defined to set the turbulence" 
+            self.alpha_turb=alpha_turb
+            
         self.grid=grid
-        self.ddist=ddist
-        self.rho_d=np.zeros((ddist.N_species,grid.Nth,grid.Nphi,grid.Nr)) # density field (only norther emisphere)
+        self.gas_species=gas_species
+        self.N_species=len(self.gas_species)
+        self.gas_species=gas_species
+        self.Masses=Masses # total gas mass of each species
+        self.masses=masses # molecular mass of each species
 
-        thetam, phim, rm=np.meshgrid(grid.th, grid.phi, grid.r, indexing='ij' ) # so it goes from Northpole to equator. theta is still the angle from the equator.
+        if functions_rhoz==None:
+            self.functions_rhoz=[]
+            for ia in range(self.N_species):
+                self.functions_rhoz.append(rhoz_Gaussian)
+        else:
+            assert len(functions_rhoz)==self.N_species, "functions_rhoz should be an array of function with a length equal to the number of species"
+            self.functions_rhoz=functions_rhoz
+        #################################################################
+        #### create lines.inp, which indicates which species to consider
+        #################################################################
+
+        file_lines=open('lines.inp', 'w')
+        file_lines.write('2 \n')
+        file_lines.write(str(self.N_species)+' \n')
+
+        for ia in range(self.N_species):
+            file_lines.write(self.gas_species[ia]+'\t leiden \t 0 \t  0 \t 0 \n') # LTE, no collisional partners
+        file_lines.close()
 
 
-        # if grid.Nphi>1:
-        #     dThm, dPhim, dRm = np.meshgrid(Thedge[1:]-Thedge[:-1], Phiedge[1:]-Phiedge[:-1], Redge[1:]-Redge[:-1], indexing='ij' )
-        # else:
-        dthm, dphim, drm = np.meshgrid(grid.dth, grid.dphi, grid.dr, indexing='ij' )
+
+        ### grid
+        
+        thetam, phim, rm=np.meshgrid(self.grid.th, self.grid.phi, self.grid.r, indexing='ij' ) # Theta is ordered from midplane to North pole. Theta is still the angle from the equator.
+        dthm, dphim, drm = np.meshgrid(self.grid.dth, self.grid.dphi, self.grid.dr, indexing='ij' )
 
         rhom=rm*np.cos(thetam) 
         zm=rm*np.sin(thetam)
 
-        # Ms=ddist.Mgrid
+        #################################################################    
+        ### define the density field
+        #################################################################
+
+        self.rho_g=np.zeros((self.N_species,self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # density field (only norther emisphere)
+
+       
+        # define density
+    
+        for ia in range(self.N_species):
+            M_gas_temp= 0.0
         
-        for ia in range(ddist.N_species):
-            M_dust_temp= 0.0
-        
-            # nother emisphere
-            if grid.Nth>1: # more than one cell per emisphere
-                self.rho_d[ia,:,:,:]=self.rho_3d_dens(rhom, phim, zm, h, function_sigma, *par_sigma)
+            if self.grid.Nth>1: # more than one cell per emisphere
+                self.rho_g[ia,:,:,:]=self.rho_3d_dens(rhom, phim, zm, h, self.functions_rhoz[ia], functions_sigma[ia], *pars_sigma[ia])
 
                 # # now south emisphere is copy of nother emisphere
                 # rho_d[ia,Nth-1:,:,:]=rho_d[ia,-Nth::-1,:,:]
@@ -139,68 +182,136 @@ class dust_densities:
                 # a[:-3:-1]  # the last two items, reversed
                 # a[-3::-1]  # everything except the last two items, reversed
             
-            
-            elif grid.Nth==1:# one cell
+            elif self.grid.Nth==1:# one cell
 
-                self.rho_d[ia,:,:,:]=function_sigma(rhom, phim, *par_sigma)/(grid.dth[0]*rhom) # rho_3d_dens(rho, 0.0, 0.0, hs, sigmaf, *args )
+                self.rho_g[ia,:,:,:]=functions_sigma[ia](rhom, phim, *pars_sigma[ia])/(self.grid.dth[0]*rhom) # rho_3d_dens(rho, 0.0, 0.0, hs, sigmaf, *args )
                 # rho_d[ia,1,:,:]=rho_d[ia,0,:,:]
+        
+            M_gas_temp=2.*np.sum(self.rho_g[ia,:,:,:]*(dphim*rhom)*(drm)*(dthm*rm))*au**3.0
+            self.rho_g[ia,:,:,:]=self.rho_g[ia,:,:,:]*self.Masses[ia]/M_gas_temp*M_earth /self.masses[ia] # 1/cm3
 
-            M_dust_temp=2.*np.sum(self.rho_d[ia,:,:,:]*(dphim*rhom)*(drm)*(dthm*rm))*au**3.0
-            self.rho_d[ia,:,:,:]=self.rho_d[ia,:,:,:]*ddist.Mgrid[ia]/M_dust_temp*M_earth
+        #################################################################
+        ##### define velocity field
+        #################################################################
 
+        self.vel=np.zeros((3,self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # gas velocity field (only norther emisphere)
 
+        self.vel[0,:,:,:] = 0.0 # vr, cm/s
+        self.vel[1,:,:,:] = 0.0 # vtheta, cm/s
+        self.vel[2,:,:,:] = np.sqrt(   G * star.Mstar*M_sun * rhom**2/(rm**3)/au    )  # vphi , cm/s
+        
+        # #### define turbulence (IT NEEDS TO KNOW THE SOUND SPEED)
+        if turbulence: # speed in cm/s
+
+            try:
+                self.Ts=np.fromfile('./dust_temperature.bdat', count=self.grid.Nr*self.grid.Nphi*self.grid.Nth+4, dtype=float)[4:].reshape( (self.grid.Nphi, self.grid.Nth, self.grid.Nr))
+            except:
+                self.Ts=np.fromfile('./dust_temperature.inp', count=self.grid.Nr*self.grid.Nphi*self.grid.Nth+4, dtype=float)[4:].reshape( (self.grid.Nphi, self.grid.Nth, self.grid.Nr))
+
+            self.cs=np.sqrt(K*self.Ts/(mu * mp)) # cm/s
+            self.turbulence=np.sqrt(self.alpha_turb)*self.cs # Nphi, Nth, Nr
+        
     ###############
     ### methods ###
     ###############
-    @staticmethod
-    def rho_3d_dens(rho, phi, z, h, function_sigma, *arguments ):
 
+    @staticmethod
+    def rho_3d_dens(rho, phi, z, h, function_rhoz, function_sigma, *arguments ):
         H=h*rho # au
-        return function_sigma(rho,phi, *arguments)*np.exp(-z**2.0/(2.0*H**2.0))/(np.sqrt(2.0*np.pi)*H)
-        
-        
+        return function_sigma(rho,phi, *arguments)*function_rhoz(z,H)
+    
+
     def write_density(self):
 
-        # Save 
-        path='dust_density.inp'
-        file_dust=open(path,'w')
-    
-        file_dust.write('1 \n') # iformat
-        if self.grid.mirror:
-            file_dust.write(str((self.grid.Nr)*(self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
-        else:
-            file_dust.write(str((self.grid.Nr)*(2*self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
+        # Save species
+        for ia in range(self.N_species):
+            
+            path='numberdens_'+self.gas_species[ia]+'.inp'
+            file_gas=open(path,'w')
+            file_gas.write('1 \n') # iformat
 
-        file_dust.write(str(self.ddist.N_species)+' \n') # n species
+            if self.grid.mirror:
+                file_gas.write(str((self.grid.Nr)*(self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
+            else:
+                file_gas.write(str((self.grid.Nr)*(2*self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
 
-        for ai in range(self.ddist.N_species):
             for j in range(self.grid.Nphi):
-                if self.grid.mirror:
-                    for k in range(self.grid.Nth):
-                        for i in range(self.grid.Nr):
-                            file_dust.write(str(self.rho_d[ai,-(1+k),j,i])+' \n')
-                else:
-                    # northern emisphere
-                    for k in range(self.grid.Nth):
-                        for i in range(self.grid.Nr):
-                            file_dust.write(str(self.rho_d[ai,-(1+k),j,i])+' \n')
+                # northern emisphere
+                for k in range(self.grid.Nth):
+                    for i in range(self.grid.Nr):
+                        file_gas.write('%1.5e \n'%(self.rho_g[ia,-(1+k),j,i]))
+
+                if not self.grid.mirror:
                     # southern emisphere
                     for k in range(self.grid.Nth):
                         for i in range(self.grid.Nr):
-                            file_dust.write(str(self.rho_d[ai,k,j,i])+' \n')
-        file_dust.close()
-        
+                            file_gas.write('%1.5e \n'%(self.rho_g[ia,k,j,i]))
+                
+            file_gas.close()
 
-    
-class dust_size_distribution:
+
+    def write_velocity(self):
+
+        path='gas_velocity.inp'
+        file_velocity=open(path,'w')
+        file_velocity.write('1 \n') # iformat
+
+        if self.grid.mirror:
+            file_velocity.write(str((self.grid.Nr)*(self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
+        else:
+            file_velocity.write(str((self.grid.Nr)*(2*self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
+
+        for j in range(self.grid.Nphi):
+            # northern emisphere
+            for k in range(self.grid.Nth):
+                for i in range(self.grid.Nr):
+                    file_velocity.write(str(self.vel[0,-(1+k),j,i])+'\t '+str(self.vel[1,-(1+k),j,i])+'\t '+str(self.vel[2,-(1+k),j,i])+' \n')
+
+            if not self.grid.mirror:
+                # southern emisphere
+                for k in range(self.grid.Nth):
+                    for i in range(self.grid.Nr):
+                        file_velocity.write(str(self.vel[0,k,j,i])+'\t '+str(self.vel[1,k,j,i])+'\t '+str(self.vel[2,k,j,i])+' \n')
+                
+        file_velocity.close() 
+
+    def write_turbulence(self):
+
+        path='microturbulence.inp'
+        file_turbulence=open(path,'w')
+        file_turbulence.write('1 \n') # iformat
+
+        if self.grid.mirror:
+            file_turbulence.write(str((self.grid.Nr)*(self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
+        else:
+            file_turbulence.write(str((self.grid.Nr)*(2*self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
+
+            
+        for j in range(self.grid.Nphi):
+
+            # northern emisphere
+            for k in range(self.grid.Nth):
+                for i in range(self.grid.Nr):
+                    file_turbulence.write(str(self.turbulence[j,-(1+k),i])+' \n')
+            if not self.grid.mirror:
+                # southern emisphere
+                for k in range(self.grid.Nth):
+                    for i in range(self.grid.Nr):
+                        file_turbulence.write(str(self.turbulence[j, k ,i])+' \n')
+                
+        file_turbulence.close() 
+        
+            
+class dust:
     """
-    A class used to define the dust distribution and opacities
+    A class used to define the dust size distribution, opacities, and density distribution d
     """
     def __init__(self, wavelength_grid, Mdust=0.1, lnk_file=None,amin=1.0, amax=1.0e4, slope=-3.5, density=3.0, N_species=1, N_per_bin=50, densities=None, mass_weights=None, tag='i', compute_opct=True ):
         """
         Mdust: dust mass in earth masses
         amin: minimum grain size in um
         amax: maximum grain size in um
+        ....
         """
 
         self.lnk_file=lnk_file if lnk_file is not None else sys.exit('invalid lnk_file')
@@ -238,6 +349,18 @@ class dust_size_distribution:
         else:
             sys.exit('lnk_file does not have the right format (list or string)')
 
+        path='dustopac.inp'
+        file_list_opacities=open(path,'w')
+        file_list_opacities.write("2               Format number of this file \n")
+        file_list_opacities.write(str(self.N_species)+"              Nr of dust species \n")
+        file_list_opacities.write("============================================================================ \n")
+        for i in range(self.N_species):
+            file_list_opacities.write("1               Way in which this dust species is read \n")
+            file_list_opacities.write("0               0=Thermal grain \n")
+            file_list_opacities.write(self.tag+"_"+str(i+1)+ " Extension of name of dustkappa_***.inp file \n")
+            file_list_opacities.write("---------------------------------------------------------------------------- \n")
+        file_list_opacities.close()
+            
     ###############
     ### methods ###
     ###############
@@ -299,7 +422,6 @@ class dust_size_distribution:
             file_list_opacities.write(self.tag+"_"+str(i+1)+ " Extension of name of dustkappa_***.inp file \n")
             file_list_opacities.write("---------------------------------------------------------------------------- \n")
         file_list_opacities.close()
-            
         
     def mix_opct_bruggeman(self, pathout='opct_mix.lnk'):
 
@@ -350,7 +472,101 @@ class dust_size_distribution:
 
         np.savetxt(pathout,Opct1)
 
+    def dust_densities(self, grid=None, function_sigma=None, par_sigma=None, h=0.05):
 
+        """
+        funtion_sigma: function that defines the surface density. The first two arguments are two nd numpy arrays for rho and z
+        """
+        
+        assert grid is not None, "grid object needed to define dust density distribution"
+        assert function_sigma is not None, "surface density profile needed to define dust density distribution"
+
+        ## strange cases ntheta=1, mirror, etc
+        self.grid=grid
+        self.rho_d=np.zeros((self.N_species,self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # density field (only norther emisphere)
+
+        thetam, phim, rm=np.meshgrid(self.grid.th, self.grid.phi, self.grid.r, indexing='ij' ) # so it goes from Northpole to equator. theta is still the angle from the equator.
+
+
+        # if grid.Nphi>1:
+        #     dThm, dPhim, dRm = np.meshgrid(Thedge[1:]-Thedge[:-1], Phiedge[1:]-Phiedge[:-1], Redge[1:]-Redge[:-1], indexing='ij' )
+        # else:
+        dthm, dphim, drm = np.meshgrid(self.grid.dth, self.grid.dphi, self.grid.dr, indexing='ij' )
+
+        rhom=rm*np.cos(thetam) 
+        zm=rm*np.sin(thetam)
+
+        # Ms=ddist.Mgrid
+        
+        for ia in range(self.N_species):
+            M_dust_temp= 0.0
+        
+            # nother emisphere
+            if self.grid.Nth>1: # more than one cell per emisphere
+                self.rho_d[ia,:,:,:]=self.rho_3d_dens(rhom, phim, zm, h, function_sigma, *par_sigma)
+
+                # # now south emisphere is copy of nother emisphere
+                # rho_d[ia,Nth-1:,:,:]=rho_d[ia,-Nth::-1,:,:]
+                ### the line above works because this is how step and slicing work https://stackoverflow.com/questions/509211/understanding-slice-notation
+                # a[::-1]    # all items in the array, reversed
+                # a[1::-1]   # the first two items, reversed
+                # a[:-3:-1]  # the last two items, reversed
+                # a[-3::-1]  # everything except the last two items, reversed
+            
+            
+            elif self.grid.Nth==1:# one cell
+
+                self.rho_d[ia,:,:,:]=function_sigma(rhom, phim, *par_sigma)/(self.grid.dth[0]*rhom) # rho_3d_dens(rho, 0.0, 0.0, hs, sigmaf, *args )
+                # rho_d[ia,1,:,:]=rho_d[ia,0,:,:]
+
+            M_dust_temp=2.*np.sum(self.rho_d[ia,:,:,:]*(dphim*rhom)*(drm)*(dthm*rm))*au**3.0
+            self.rho_d[ia,:,:,:]=self.rho_d[ia,:,:,:]*self.Mgrid[ia]/M_dust_temp*M_earth
+
+
+    ###############
+    ### methods ###
+    ###############
+    @staticmethod
+    def rho_3d_dens(rho, phi, z, h, function_sigma, *arguments ):
+
+        H=h*rho # au
+        return function_sigma(rho,phi, *arguments)*np.exp(-z**2.0/(2.0*H**2.0))/(np.sqrt(2.0*np.pi)*H)
+        
+        
+    def write_density(self):
+
+        # Save 
+        path='dust_density.inp'
+        file_dust=open(path,'w')
+    
+        file_dust.write('1 \n') # iformat
+        if self.grid.mirror:
+            file_dust.write(str((self.grid.Nr)*(self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
+        else:
+            file_dust.write(str((self.grid.Nr)*(2*self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
+
+        file_dust.write(str(self.N_species)+' \n') # n species
+
+        for ia in range(self.N_species):
+            for j in range(self.grid.Nphi):
+
+                # northern emisphere
+                for k in range(self.grid.Nth):
+                    for i in range(self.grid.Nr):
+                        file_dust.write(str(self.rho_d[ia,-(1+k),j,i])+' \n')
+
+                if not self.grid.mirror:
+                    # southern emisphere
+                    for k in range(self.grid.Nth):
+                        for i in range(self.grid.Nr):
+                            file_dust.write(str(self.rho_d[ia,k,j,i])+' \n')
+        file_dust.close()
+        
+
+
+
+
+        
 
 class star:
     """

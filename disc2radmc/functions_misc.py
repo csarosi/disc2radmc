@@ -8,6 +8,11 @@ import cmath as cma
 from disc2radmc.constants import *
 from astropy.io import fits
 
+
+# function to define vertical distribution
+def rhoz_Gaussian(z, H):
+    return np.exp(-(z)**2.0/(2.0*H**2.0))/(np.sqrt(2.0*np.pi)*H)
+
 #### Functions to mix optical constants following Bruggeman's mixing rule
 
 def effnk(n1,k1,n2,k2,n3,k3,f2,f3): 
@@ -101,7 +106,7 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
         # del header_pb['Origin'] # necessary due to a comment that CASA adds automatically
 
         # check if pixel sizes are the same
-        assert abs(pixdeg_x-header_pb['CDELT2'])/pixdeg_x <0.01, 'pixel size of primary beam is %1.7e and image is %1.7e. Make sure they are the same within 1\%'%(pixdeg_x,header_pb['CDELT2'])
+        assert abs(pixdeg_x-header_pb['CDELT2'])/pixdeg_x <0.01, ('pixel size of primary beam is %1.5e and image is %1.5e. Make sure they are the same within 1 per cent'%(pixdeg_x,header_pb['CDELT2']))
 
         # check if primary beam needs to be pad
         if header_pb['NAXIS1']<Npixf or header_pb['NAXIS2']<Npixf:
@@ -128,6 +133,7 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
         delta_velocity = (lam[1] - lam[0])*cc*1e-5/lam0 # km/s
 
         if continuum_subtraction: # subtract continuum assuming it varies linearly with wavelength
+            if verbose: print('subtracting continuum')
             m=(image_in_jypix_shifted[0,-1,:,:]- image_in_jypix_shifted[0,0,:,:])/(lam[-1]-lam[0])
             I0=image_in_jypix_shifted[0,0,:,:]*1.
             for k in range(nf):
