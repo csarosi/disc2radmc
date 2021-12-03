@@ -103,14 +103,14 @@ class simulation:
         
         convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, continuum_subtraction=continuum_subtraction, background_args=background_args, tag=tag, primary_beam=primary_beam)
 
-    def simsed(self, wmin=0.1, wmax=1000., Nw=100, dpc=100., outputfile='sed.txt', inc=0., PA=0., omega=0., sizeau=0. ):
-        Pl=(wmax/wmin)**(1.0/(Nw-1))
+    def simsed(self, wavelengths=np.logspace(-1,2, 100), dpc=100., outputfile='sed.txt', inc=0., PA=0., omega=0., sizeau=0. ):
 
+        Nw=len(wavelengths)
         path='camera_wavelength_micron.inp'
         arch=open(path,'w')
         arch.write(str(Nw)+'\n')
         for i in range(Nw):
-            arch.write(str(wmin*Pl**(i))+'\n')
+            arch.write('%1.5e \n'%(wavelengths[i]))
         arch.close()
         
         if sizeau>0.0:
