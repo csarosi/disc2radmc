@@ -103,7 +103,37 @@ class simulation:
         
         convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, continuum_subtraction=continuum_subtraction, background_args=background_args, tag=tag, primary_beam=primary_beam)
 
+    def simsed(self, wmin=0.1, wmax=1000., Nw=100, dpc=100., outputfile='sed.txt', inc=0., PA=0., omega=0., sizeau=0. ):
+        Pl=(wmax/wmin)**(1.0/(Nw-1))
 
+        path='camera_wavelength_micron.inp'
+        arch=open(path,'w')
+        arch.write(str(Nw)+'\n')
+        for i in range(Nw):
+            arch.write(str(wmin*Pl**(i))+'\n')
+        arch.close()
+        
+        if sizeau>0.0:
+            os.system('radmc3d spectrum loadlambda incl %1.5f phi %1.5f posang %1.5f sizeau %1.5e secondorder'%(inc, omega, (PA-90.0), sizeau))
+        else:
+            os.system('radmc3d spectrum loadlambda incl %1.5f phi %1.5f posang %1.5f secondorder'%(inc, omega, (PA-90.0)))
+        
+        arch=open('spectrum.out','r')
+        arch.readline()
+        Nw=int(arch.readline())
+        SED=np.zeros((Nw,2))
+        arch.readline()
+        for i in range(Nw):
+            line=arch.readline()
+            dat=line.split()
+            SED[i,0]=float(dat[0])   # wavelength in um 
+            SED[i,1]=float(dat[1])*1.0e23/dpc**2. # Flux in Jy
+        arch.close()
+        np.savetxt(outputfile, SED)
+        return SED
+
+    
+    
 class gas:
     
     """

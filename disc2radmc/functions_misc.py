@@ -198,6 +198,7 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     # FREQ
     if nf > 1:
         if vel==True:
+            print(lam[int(nf//2)+1])
             # multiple frequencies - set up the header keywords to define the
             #    third axis as frequency
             header['CTYPE3'] = 'VELOCITY'
@@ -209,16 +210,16 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
                 header['CRVAL3'] = 0.0
             # Calculate the frequency step, assuming equal steps between all:
             header['CDELT3'] = delta_velocity
-            header['RESTFRQ']=cc/(lam[int(nf//2)+1]*1.0e-4)
+            header['RESTFRQ']=cc/(lam[int(nf//2)]*1.0e-4)
 
         else:
             header['CTYPE3'] = 'FREQ-LSR'
             header['CUNIT3'] = 'HZ'
             header['CRPIX3'] = int(nf//2)+1
-            header['CRVAL3'] = cc*1.0e4/lam[int(nf//2)+1] # central channel if odd, 
+            header['CRVAL3'] = cc*1.0e4/lam[int(nf//2)] # central channel if odd, 
             # Calculate the frequency step, assuming equal steps between all:
             header['CDELT3'] = delta_freq
-            header['RESTFRQ']=cc/(lam[int(nf//2)+1]*1.0e-4)
+            header['RESTFRQ']=cc/(lam[int(nf//2)]*1.0e-4)
     else:                # only one frequency
         header['RESTFRQ'] = cc/(lam[0]*1.0e-4)
 
