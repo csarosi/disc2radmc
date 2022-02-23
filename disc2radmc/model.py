@@ -140,7 +140,7 @@ class gas:
     A class used to define the gas species, densities and velocities
     """
 
-    def __init__(self, gas_species=None, star=None, grid=None, Masses=None, masses=None, functions_sigma=None, pars_sigma=None, h=0.05, turbulence=False, alpha_turb=None, functions_rhoz=None, mu=28. ):
+    def __init__(self, gas_species=None, star=None, grid=None, Masses=None, masses=None, functions_sigma=None, pars_sigma=None, h=0.05, r0=100., gamma=1.,turbulence=False, alpha_turb=None, functions_rhoz=None, mu=28. ):
         assert gas_species is not None, "Gas species need to be defined"
         assert star is not None, "star needs to be defined as its mass will set the rotation speed"
         assert grid is not None, "grid object needed to define gas density distribution"
@@ -202,7 +202,7 @@ class gas:
             M_gas_temp= 0.0
         
             if self.grid.Nth>1: # more than one cell per emisphere
-                self.rho_g[ia,:,:,:]=self.rho_3d_dens(rhom, phim, zm, h, self.functions_rhoz[ia], functions_sigma[ia], *pars_sigma[ia])
+                self.rho_g[ia,:,:,:]=self.rho_3d_dens(rhom, phim, zm, h, r0, gamma, self.functions_rhoz[ia], functions_sigma[ia], *pars_sigma[ia])
 
                 # # now south emisphere is copy of nother emisphere
                 # rho_d[ia,Nth-1:,:,:]=rho_d[ia,-Nth::-1,:,:]
@@ -246,8 +246,8 @@ class gas:
     ###############
 
     @staticmethod
-    def rho_3d_dens(rho, phi, z, h, function_rhoz, function_sigma, *arguments ):
-        H=h*rho # au
+    def rho_3d_dens(rho, phi, z, h, r0, gamma,  function_rhoz, function_sigma, *arguments ):
+        H=h*r0*(rho/r0)**gamma # au
         return function_sigma(rho,phi, *arguments)*function_rhoz(z,H)
     
 
@@ -390,7 +390,8 @@ class dust:
             file_list_opacities.write(self.tag+"_"+str(i+1)+ " Extension of name of dustkappa_***.inp file \n")
             file_list_opacities.write("---------------------------------------------------------------------------- \n")
         file_list_opacities.close()
-            
+
+
     ###############
     ### methods ###
     ###############
@@ -502,8 +503,16 @@ class dust:
 
         np.savetxt(pathout,Opct1)
 
-    def dust_densities(self, grid=None, function_sigma=None, par_sigma=None, h=0.05):
+    def dust_densities(self, grid=None, function_sigma=None, par_sigma=None, h=0.05, r0=100., gamma=1., functions_rhoz=None):
 
+        if functions_rhoz==None:
+            self.functions_rhoz=[]
+            for ia in range(self.N_species):
+                self.functions_rhoz.append(rhoz_Gaussian)
+        else:
+            assert len(functions_rhoz)==self.N_species, "functions_rhoz should be an array of function with a length equal to the number of species"
+            self.functions_rhoz=functions_rhoz
+        
         """
         funtion_sigma: function that defines the surface density. The first two arguments are two nd numpy arrays for rho and z
         """
@@ -533,7 +542,7 @@ class dust:
         
             # nother emisphere
             if self.grid.Nth>1: # more than one cell per emisphere
-                self.rho_d[ia,:,:,:]=self.rho_3d_dens(rhom, phim, zm, h, function_sigma, *par_sigma)
+                self.rho_d[ia,:,:,:]=self.rho_3d_dens(rhom, phim, zm, h, r0, gamma, self.functions_rhoz[ia], function_sigma, *par_sigma)
 
                 # # now south emisphere is copy of nother emisphere
                 # rho_d[ia,Nth-1:,:,:]=rho_d[ia,-Nth::-1,:,:]
@@ -557,10 +566,14 @@ class dust:
     ### methods ###
     ###############
     @staticmethod
-    def rho_3d_dens(rho, phi, z, h, function_sigma, *arguments ):
-
-        H=h*rho # au
-        return function_sigma(rho,phi, *arguments)*np.exp(-z**2.0/(2.0*H**2.0))/(np.sqrt(2.0*np.pi)*H)
+    def rho_3d_dens(rho, phi, z, h, r0, gamma,  function_rhoz, function_sigma, *arguments ):
+        H=h*r0*(rho/r0)**gamma # au
+        return function_sigma(rho,phi, *arguments)*function_rhoz(z,H)
+    
+    # @staticmethod
+    # def rho_3d_dens(rho, phi, z, h, r0, gamma, function_sigma, *arguments ):
+    #     H=h*r0*(rho/r0)**gamma # au
+    #     return function_sigma(rho,phi, *arguments)*np.exp(-z**2.0/(2.0*H**2.0))/(np.sqrt(2.0*np.pi)*H)
         
         
     def write_density(self):
