@@ -8,7 +8,7 @@ For now git clone the repository and then add to your path. Pip installation com
 
 ## Usage
 
-See example in [docs/examples/Dust_model.ipynb](https://github.com/SebaMarino/disc2radmc/blob/main/docs/examples/Dust_model.ipynb) to know how to make images of dust.
+See example in [docs/example_dust/Dust_model.ipynb](https://github.com/SebaMarino/disc2radmc/tree/main/docs/example_dust/Dust_model.ipynb) to know how to make images of dust and example at [docs/example_gas/Gas_model.ipynb](https://github.com/SebaMarino/disc2radmc/blob/main/docs/example_gas/Gas_model.ipynb) to make images (cubes) of gas.
 
 ## Credits
 
