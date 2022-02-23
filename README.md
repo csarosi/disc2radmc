@@ -1,14 +1,14 @@
 # Welcome to disc2radmc by Dr. Sebastian Marino
 
-disc2radmc is a python package to create debris disc models that can be fed into RADMC3D to create synthetic images.
+Disc2radmc is a python package to create debris disc models that can be fed into RADMC3D to create synthetic images of dust and gas.
 
 ## Installation
 
-for now git clone the repository and then add to your path. Pip installation coming soon...
+For now git clone the repository and then add to your path. Pip installation coming soon...
 
 ## Usage
 
-See example in [docs/example_make_image/make_model.py](https://github.com/SebaMarino/disc2radmc/blob/main/docs/example_make_image/make_model.py) to know how to use it. Docs coming soon...
+See example in [docs/examples/Dust_model.ipynb](https://github.com/SebaMarino/disc2radmc/blob/main/docs/examples/Dust_model.ipynb) to know how to make images of dust.
 
 ## Credits
 
