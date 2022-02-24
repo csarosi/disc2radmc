@@ -4,7 +4,7 @@ Disc2radmc is a python package to create debris disc models that can be fed into
 
 ## Installation
 
-For now git clone the repository and then add to your path. Pip installation coming soon...
+Install with pip as 'pip install disc2radmc'.
 
 ## Usage
 
