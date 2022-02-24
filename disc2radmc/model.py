@@ -1,5 +1,4 @@
 import numpy as np
-import cmath as cma
 import os,sys
 from disc2radmc.constants import *
 from disc2radmc.functions_misc import *
