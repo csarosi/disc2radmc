@@ -11,3 +11,4 @@ h_p=6.62606885e-27 # cgs (egrs*s)
 cc  = 2.9979245800000e10      # Light speed             [cm/s]
 cc_a=2.99792458e18 # light speed in A/s
 mp=1.67262e-24 # g
+yr=3.154e+7 # s

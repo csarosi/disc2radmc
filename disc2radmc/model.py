@@ -139,7 +139,7 @@ class gas:
     A class used to define the gas species, densities and velocities
     """
 
-    def __init__(self, gas_species=None, star=None, grid=None, Masses=None, masses=None, functions_sigma=None, pars_sigma=None, h=0.05, r0=100., gamma=1.,turbulence=False, alpha_turb=None, functions_rhoz=None, mu=28. ):
+    def __init__(self, gas_species=None, star=None, grid=None, Masses=None, masses=None, functions_sigma=None, pars_sigma=None, h=0.05, r0=100., gamma=1.,turbulence=False, alpha_turb=None, functions_rhoz=None, mu=28. , vr=0.0):
         assert gas_species is not None, "Gas species need to be defined"
         assert star is not None, "star needs to be defined as its mass will set the rotation speed"
         assert grid is not None, "grid object needed to define gas density distribution"
@@ -225,7 +225,7 @@ class gas:
 
         self.vel=np.zeros((3,self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # gas velocity field (only norther emisphere)
 
-        self.vel[0,:,:,:] = 0.0 # vr, cm/s
+        self.vel[0,:,:,:] = vr # vr, cm/s
         self.vel[1,:,:,:] = 0.0 # vtheta, cm/s
         self.vel[2,:,:,:] = np.sqrt(   G * star.Mstar*M_sun * rhom**2/(rm**3)/au    )  # vphi , cm/s
         
