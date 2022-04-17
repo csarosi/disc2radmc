@@ -832,8 +832,9 @@ class physical_grid:
         else:
             if Nphi is not None:
                 self.Nphi=int(Nphi) if Nphi>0 else default_Nphi
+                
             else: self.Nphi=default_Nphi
-
+            if self.Nphi==1: self.axisym=True # enforce axisym if Nphi is set to 1
 
         ### R
         if self.logr: # log sampling
