@@ -7,6 +7,7 @@ import numpy as np
 import cmath as cma
 from disc2radmc.constants import *
 from astropy.io import fits
+from astropy.convolution import convolve_fft
 
 
 # function to define vertical distribution
@@ -233,6 +234,138 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     fits.writeto(path_fits, image_in_jypix_float, header, output_verify='fix', overwrite=True)
 
 
+
+def Convolve_beam(path_image, BMAJ, BMIN, BPA, tag_out=''):
+
+    ### BMAJ, BMIN and BPA in deg
+    
+    #  -----cargar fit y extraer imagen
+
+    fit1	= fits.open(path_image) #abrir objeto cubo de datos
+    
+    data1 	= get_last2d(fit1[0].data) # [0,0,:,:] # extract image matrix
+
+    print(np.shape(data1))
+
+    header1	= fit1[0].header
+    ps_deg=float(header1['CDELT2'])
+    ps_mas= ps_deg*3600.0*1000.0 # pixel size input in mas
+    dtheta=ps_deg*np.pi/180.0 # dtheta in rad
+
+    M=len(data1[:,0])
+
+    N=M # dim output
+
+    ps1= ps_mas # pixel size input in mas
+    ps2= ps1 # pixel size output in mas
+
+    dtheta2=ps2*np.pi/(3600.0*1000.0*180.0)
+
+    d=0
+
+    Fin1=data1[:,:]#*1e23/(dtheta**2.0) #  JY/PIXEL to ergs/s cm2 Hz sr
+
+    x1=np.zeros(N)
+    y1=np.zeros(N)
+    for i in range(N):
+        x1[i]=(i-M/2.0)*ps1
+        y1[i]=(i-N/2.0)*ps1
+  
+
+    sigx=BMIN*3600.0*1000.0/(2.0*np.sqrt(2.0*np.log(2.0))) 
+    sigy=BMAJ*3600.0*1000.0/(2.0*np.sqrt(2.0*np.log(2.0)))  
+    theta=BPA*np.pi/180.0   #np.pi/4.0
+
+    # Fout1=interpol(N,M,ps1,ps2,Fin1,sigx,sigy,theta)
+
+    Gaussimage=np.zeros((N,N))
+    for j in range(N):
+        for i in range(N):
+            x=(i-N/2.0)*ps2
+            y=(j-N/2.0)*ps2
+            Gaussimage[j,i]=Gauss2d(x,y,0.0,0.0,sigx,sigy,theta)
+    # Gaussimage=Gaussimage/np.max(Gaussimage)
+
+
+    Fout1=convolve_fft(Fin1,Gaussimage, normalize_kernel=False)
+
+
+
+    header1['BMIN'] = BMIN
+    header1['BMAJ'] = BMAJ
+    header1['BPA'] = BPA
+
+    header1['BUNIT']='JY/BEAM'
+
+    path_fits=path_image[:-5]+'_beamconvolved'+tag_out+'.fits'
+    fits.writeto(path_fits, Fout1, header1, output_verify='fix', overwrite=True)
+
+
+def Convolve_beam_cube(path_image, BMAJ, BMIN, BPA):
+
+    ### BMAJ, BMIN and BPA in deg
+
+    #  -----cargar fit y extraer imagen
+
+    fit1	= fits.open(path_image) #abrir objeto cubo de datos
+    
+    data1 	= fit1[0].data # [0,0,:,:] # extract image matrix
+
+    print(np.shape(data1))
+
+    header1	= fit1[0].header
+    ps_deg=float(header1['CDELT2'])
+    ps_mas= ps_deg*3600.0*1000.0 # pixel size input in mas
+    dtheta=ps_deg*np.pi/180.0 # dtheta in rad
+
+    N=len(data1[0,0,0,:])
+    Nf=len(data1[0,:,0,0])
+    ps1= ps_mas # pixel size input in mas
+    ps2= ps1 # pixel size output in mas
+
+    dtheta2=ps2*np.pi/(3600.0*1000.0*180.0)
+
+    d=0
+
+    Fin1=data1[:,:]#*1e23/(dtheta**2.0) #  JY/PIXEL to ergs/s cm2 Hz sr
+
+    x1=np.zeros(N)
+    y1=np.zeros(N)
+    for i in range(N):
+        x1[i]=(i-N/2.0)*ps1
+        y1[i]=(i-N/2.0)*ps1
+
+
+   
+    sigx=BMIN*3600.0*1000.0/(2.0*np.sqrt(2.0*np.log(2.0))) 
+    sigy=BMAJ*3600.0*1000.0/(2.0*np.sqrt(2.0*np.log(2.0)))  
+    theta=BPA*np.pi/180.0   #np.pi/4.0
+
+    # Fout1=interpol(N,M,ps1,ps2,Fin1,sigx,sigy,theta)
+
+    Gaussimage=np.zeros((N,N))
+    for j in range(N):
+        for i in range(N):
+            x=(i-N/2.0)*ps2
+            y=(j-N/2.0)*ps2
+            Gaussimage[j,i]=Gauss2d(x,y,0.0,0.0,sigx,sigy,theta)
+    # Gaussimage=Gaussimage/np.max(Gaussimage)
+
+    Fout1=np.zeros((1,Nf,N,N))
+    for k in range(Nf):
+        Fout1[0,k,:,:]=convolve_fft(Fin1[0,k,:,:],Gaussimage, normalize_kernel=False)
+
+
+    header1['BMIN'] = BMIN
+    header1['BMAJ'] = BMAJ
+    header1['BPA'] = BPA
+
+    header1['BUNIT']='Jy/beam'
+
+    path_fits=path_image[:-5]+'_beamconvolved.fits'
+    fits.writeto(path_fits, Fout1, header1, output_verify='fix', overwrite=True)
+
+    
 def load_image(path_image, dpc):
 
     f=open(path_image,'r')
