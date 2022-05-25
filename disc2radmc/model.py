@@ -629,7 +629,7 @@ class star:
         default_Tstar=5750.
         default_Rstar=1.0
         default_Mstar=1.0
-
+        
         if Tstar is not None:
             if (Tstar>=2000. and Tstar<=10000.):
                 self.Tstar=Tstar
@@ -645,7 +645,8 @@ class star:
             self.Mstar=Mstar if Mstar>0. else default_Mstar
         else:
             self.Mstar=default_Mstar
-            
+        self.g=g
+        
         self.Nlam=lam_grid.Nlam
         self.lams=lam_grid.lams
         self.dlams=lam_grid.dlams
@@ -663,15 +664,15 @@ class star:
                 dT=200.
             
             if self.Tstar%dT==0.: # no need to interpolate
-                spectrum=self.get_spectrum(self.Tstar)
+                spectrum=self.get_spectrum(self.Tstar, self.g)
             else:
               
                     
                 T1=dT*self.Tstar//dT
                 T2=T1+dT
 
-                spectrum1=self.get_spectrum(T1)
-                spectrum2=self.get_spectrum(T2)
+                spectrum1=self.get_spectrum(T1, self.g)
+                spectrum2=self.get_spectrum(T2, self.g)
 
                 w1=abs(T1-self.Tstar)
                 w2=abs(T2-self.Tstar)
@@ -694,7 +695,11 @@ class star:
         returns model spectrum in units of erg/cm2/s/A 
         """
 
-        path=self.model_directory+'lte%03i-%1.1f-0.0a+0.0.BT-NextGen.7.dat.txt'%(T//100,g)
+        if T>=2600.:
+            path=self.model_directory+'lte%03i-%1.1f-0.0a+0.0.BT-NextGen.7.dat.txt'%(T//100,g)
+        else:
+            path=self.model_directory+'lte%03i-%1.1f-0.0.BT-Settl.7.dat.txt'%(T//100,g)
+
         data=np.loadtxt(path)
         
         Nlam_model=data.shape[0]
@@ -867,6 +872,9 @@ class physical_grid:
         self.dphi=self.phiedge[1:]-self.phiedge[:-1]
 
 
+        self.Ncells=self.Nr*self.Nphi*self.Nth
+        if self.mirror==False: self.Ncells=self.Ncells*2
+        
     def save(self):
     
         path='amr_grid.inp' #'amr_grid.inp'
