@@ -667,8 +667,7 @@ class star:
                 spectrum=self.get_spectrum(self.Tstar, self.g)
             else:
               
-                    
-                T1=dT*self.Tstar//dT
+                T1=dT*(self.Tstar//dT)
                 T2=T1+dT
 
                 spectrum1=self.get_spectrum(T1, self.g)
@@ -694,7 +693,6 @@ class star:
         """
         returns model spectrum in units of erg/cm2/s/A 
         """
-
         if T>=2600.:
             path=self.model_directory+'lte%03i-%1.1f-0.0a+0.0.BT-NextGen.7.dat.txt'%(T//100,g)
         else:
