@@ -4,7 +4,6 @@ from disc2radmc.constants import *
 from disc2radmc.functions_misc import *
 from astropy.io.votable import parse
 
-
 class simulation:
     """
     A class to run radmc3d and convert output files 
@@ -675,8 +674,9 @@ class star:
 
                 w1=abs(T1-self.Tstar)
                 w2=abs(T2-self.Tstar)
-                spectrum=spectrum1*w1+spectrum2*w2/(w1+w2)
+                spectrum=(spectrum1*w1+spectrum2*w2)/(w1+w2)
 
+                
             ### compute flux at 1pc
             # spectrum is in units of erg/cm2/s/A
             # we want to convert Flambda to Fnu so we need to multiply by lambda**2/c
