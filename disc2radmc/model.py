@@ -54,7 +54,7 @@ class simulation:
         else:
             os.system('radmc3d mctherm > mctherm.log')
 
-    def simimage(self, dpc=1., imagename='', wavelength=880., Npix=256, dpix=0.05, inc=0., PA=0., offx=0.0, offy=0.0, X0=0., Y0=0., tag='', omega=0.0, Npixf=-1, fstar=-1.0, background_args=[], primary_beam=None):
+    def simimage(self, dpc=1., imagename='', wavelength=880., Npix=256, dpix=0.05, inc=0., PA=0., offx=0.0, offy=0.0, X0=0., Y0=0., tag='', omega=0.0, Npixf=-1, fstar=-1.0, background_args=[], primary_beam=None, taumap=False):
         # X0, Y0, stellar position (e.g. useful if using a mosaic)
         # images: array of names for images produced at wavelengths
         # wavelgnths: wavelengths at which to produce image in um
@@ -65,6 +65,10 @@ class simulation:
 
         sau=Npix*dpix*dpc
         image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f  npix %1.0f  lambda %1.5f sizeau %1.5f  secondorder'%(inc,omega, PA-90.0, Npix, wavelength, sau)
+
+        if taumap: # compute taumap instead of image. Need to modify radmc3d.inp
+            append_new_line("radmc3d.inp", 'camera_tracemode = -2')
+            
         if self.verbose:
             print('image size = %1.1e au'%sau)
             print(image_command)
@@ -72,11 +76,19 @@ class simulation:
         else:
             os.system(image_command+'  > simimgaes.log')
 
-        pathin ='image_'+imagename+'_'+tag+'.out'
-        pathout='images/image_'+imagename+'_'+tag+'.fits'
+        if taumap: # compute taumap instead of image. Need to remove last line in radmc3d.inp 
+            delete_last_line("radmc3d.inp")
+            
+        if taumap:
+            pathin ='image_'+imagename+'_'+tag+'_taumap.out'
+            pathout='images/image_'+imagename+'_'+tag+'_taumap.fits'
+        else:
+            pathin ='image_'+imagename+'_'+tag+'.out'
+            pathout='images/image_'+imagename+'_'+tag+'.fits'
+
         os.system('mv image.out '+pathin)
         
-        convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam)
+        convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam, taumap=taumap)
 
     
     def simcube(self, dpc=1., imagename='', mol=1, line=1, vmax=30., Nnu=20, Npix=256, dpix=0.05, inc=0., PA=0., offx=0., offy=0., X0=0., Y0=0., tag='', omega=0., Npixf=-1, fstar=-1., background_args=[], primary_beam=None, vel=False, continuum_subtraction=False):
@@ -512,7 +524,7 @@ class dust:
             self.functions_rhoz=functions_rhoz
         
         """
-        funtion_sigma: function that defines the surface density. The first two arguments are two nd numpy arrays for rho and z
+        funtion_sigma: function that defines the surface density. The first two arguments are two nd numpy arrays for rho and phi
         """
         
         assert grid is not None, "grid object needed to define dust density distribution"

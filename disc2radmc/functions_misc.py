@@ -8,7 +8,7 @@ import cmath as cma
 from disc2radmc.constants import *
 from astropy.io import fits
 from astropy.convolution import convolve_fft
-
+import os
 
 # function to define vertical distribution
 def rhoz_Gaussian(z, H):
@@ -65,11 +65,11 @@ def Intextpol(x,y,xi):
 
 ### functions to manipulate images
 
-def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y0=0.0, omega=0.0, fstar=-1.0, vel=False, continuum_subtraction=False, background_args=[], tag='', primary_beam=None, alpha_dust=None, new_lambda=None, verbose=False):
+def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y0=0.0, omega=0.0, fstar=-1.0, vel=False, continuum_subtraction=False, background_args=[], tag='', primary_beam=None, alpha_dust=None, new_lambda=None, verbose=False, taumap=False):
     # alpha is defined as the spectral index in frequency space, and thus is positive for a typical disc and star at mm wavelengths
     
     ### load image
-    image_in_jypix, nx, ny, nf, lam, pixdeg_x, pixdeg_y = load_image(path_image, dpc)
+    image_in_jypix, nx, ny, nf, lam, pixdeg_x, pixdeg_y = load_image(path_image, dpc, taumap=taumap)
     istar, jstar=star_pix(nx, omega)
     
     ## if alpha is given, then disc surface brightness and stellar flux are manipulated
@@ -122,14 +122,14 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     reffreq=cc/(lam0*1.0e-4) # Hz
 
     ### Single image
-    if nf==1: # single image
+    if nf==1 and not taumap: # single image
         flux = np.sum(image_in_jypix_shifted[0,0,:,:])
         
         if verbose: print("flux [Jy] = ", flux)
 
 
     ### image cube
-    else: 
+    elif not taumap: 
         delta_freq= (lam[0] - lam[1])*cc*1.0e4/lam[nf//2]**2.0 # Hz
         delta_velocity = (lam[1] - lam[0])*cc*1e-5/lam0 # km/s
 
@@ -164,12 +164,17 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
         header['CDELT3']  = 1.0
         header['CRVAL3']= reffreq
 
-
-    header['FLUX']=flux
-    header['BTYPE'] = 'Intensity'
-    header['BSCALE'] = 1
-    header['BZERO'] = 0
-    header['BUNIT'] = 'JY/PIXEL'#'erg/s/cm^2/Hz/ster'
+    if not taumap:
+        header['FLUX']=flux
+        header['BTYPE'] = 'Intensity'
+        header['BSCALE'] = 1
+        header['BZERO'] = 0
+        header['BUNIT'] = 'JY/PIXEL'#'erg/s/cm^2/Hz/ster'
+    else:
+        header['BTYPE'] = 'Tau'
+        header['BSCALE'] = 1
+        header['BZERO'] = 0
+        header['BUNIT'] = ''#'erg/s/cm^2/Hz/ster'
 
 
     header['CTYPE1'] = 'RA---TAN'
@@ -366,7 +371,7 @@ def Convolve_beam_cube(path_image, BMAJ, BMIN, BPA):
     fits.writeto(path_fits, Fout1, header1, output_verify='fix', overwrite=True)
 
     
-def load_image(path_image, dpc):
+def load_image(path_image, dpc, taumap=False):
 
     f=open(path_image,'r')
     iformat=int(f.readline())
@@ -392,8 +397,9 @@ def load_image(path_image, dpc):
 
                 image[0,k,j,i] = float(f.readline())
 
-                if (j == ny-1) and (i == nx-1):
-                    f.readline()
+                # if (j == ny-1) and (i == nx-1):
+                #     f.readline()
+        f.readline()
 
     f.close()
 
@@ -407,7 +413,10 @@ def load_image(path_image, dpc):
     # And scale the image array accordingly:
     image_in_jypix = factor * image
 
-    return image_in_jypix, nx, ny, nf, lam, pixdeg_x, pixdeg_y
+    if taumap:
+        return image, nx, ny, nf, lam, pixdeg_x, pixdeg_y
+    else:
+        return image_in_jypix, nx, ny, nf, lam, pixdeg_x, pixdeg_y
 
 
 def star_pix(nx, omega):
@@ -494,3 +503,42 @@ def background_object(Ni, dpix, Flux, offx, offy, Rmaj, Rmin, Rpa):
 
     F=Gauss2d(Xs , Ys, offx, offy, Rmaj, Rmin, -(Rpa+90.)*np.pi/180.)
     return F*Flux/np.sum(F)
+
+
+def append_new_line(file_name, text_to_append): # from https://thispointer.com/how-to-append-text-or-lines-to-a-file-in-python/
+    """Append given text as a new line at the end of file"""
+    # Open the file in append & read mode ('a+')
+    with open(file_name, "a+") as file_object:
+        # Move read cursor to the start of file.
+        file_object.seek(0)
+        # If file is not empty then append '\n'
+        data = file_object.read(100)
+        if len(data) > 0:
+            file_object.write("\n")
+        # Append text at the end of file
+        file_object.write(text_to_append)
+
+def delete_last_line(file_name, encoding="utf-8"): # adapted from https://stackoverflow.com/questions/1877999/delete-final-line-in-file-with-python
+
+    with open(file_name, "r+", encoding = encoding) as file:
+
+        # Move the pointer (similar to a cursor in a text editor) to the end of the file
+        file.seek(0, os.SEEK_END)
+
+        # This code means the following code skips the very last character in the file -
+        # i.e. in the case the last line is null we delete the last line
+        # and the penultimate one
+        pos = file.tell() - 1
+
+        # Read each character in the file one at a time from the penultimate
+        # character going backwards, searching for a newline character
+        # If we find a new line, exit the search
+        while pos > 0 and file.read(1) != "\n":
+            pos -= 1
+            file.seek(pos, os.SEEK_SET)
+
+        # So long as we're not at the start of the file, delete all the characters ahead
+        # of this position
+        if pos > 0:
+            file.seek(pos, os.SEEK_SET)
+            file.truncate()
