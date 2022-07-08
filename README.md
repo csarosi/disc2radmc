@@ -12,6 +12,6 @@ See example in [docs/example_dust/Dust_model.ipynb](https://github.com/SebaMarin
 
 ## Credits
 
-If you use it for a project please cite Marino et al. 2018, MNRAS, Volume 479, Issue 4, p.5423-5439 (https://ui.adsabs.harvard.edu/abs/2018MNRAS.479.5423M/abstract) and Marino et al. in prep.
+If you use it for a project please cite Marino et al. 2022 (https://ui.adsabs.harvard.edu/abs/2022MNRAS.tmp.1702M/abstract)
 
 
