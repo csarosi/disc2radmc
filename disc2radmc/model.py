@@ -64,7 +64,20 @@ class simulation:
             Npixf=Npix
 
         sau=Npix*dpix*dpc
-        image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f  npix %1.0f  lambda %1.5f sizeau %1.5f  secondorder'%(inc,omega, PA-90.0, Npix, wavelength, sau)
+
+        if hasattr(wavelength, "__len__"):
+            image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f  npix %1.0f  loadlambda sizeau %1.5f  secondorder'%(inc,omega, PA-90.0, Npix, sau)
+            # write wavelengths into camera_wavelength_micron.inp
+            Nw=len(wavelength)
+            path='camera_wavelength_micron.inp'
+            arch=open(path,'w')
+            arch.write(str(Nw)+'\n')
+            for i in range(Nw):
+                arch.write('%1.8e \n'%(wavelength[i]))
+            arch.close()
+
+        else:
+            image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f  npix %1.0f  lambda %1.5f sizeau %1.5f  secondorder'%(inc,omega, PA-90.0, Npix, wavelength, sau)
 
         if taumap: # compute taumap instead of image. Need to modify radmc3d.inp
             append_new_line("radmc3d.inp", 'camera_tracemode = -2')
