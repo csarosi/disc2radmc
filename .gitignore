@@ -1,0 +1,10 @@
+docs/example_dust/*.inp
+docs/example_dust/*.out
+docs/example_dust/*.bdat
+docs/example_dust/*.log
+docs/example_gas/*.inp
+docs/example_gas/*.out
+docs/example_gas/*.bdat
+docs/example_gas/*.log
+tests
+disc2radmc/*.pyc
