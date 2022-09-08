@@ -476,7 +476,8 @@ class dust:
             file_list_opacities.write(self.tag+"_"+str(i+1)+ " Extension of name of dustkappa_***.inp file \n")
             file_list_opacities.write("---------------------------------------------------------------------------- \n")
         file_list_opacities.close()
-        
+        os.system('rm '+path+'param.inp')
+
     def mix_opct_bruggeman(self, pathout='opct_mix.lnk'):
 
         # Mixing rule Bruggeman for max 3 species
