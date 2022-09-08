@@ -88,10 +88,14 @@ scattering_mode=2 # scattering mode (0=no scattering, 1=isotropic, 2=anisotropic
 
 
 
+
+
+
+
 #######################################################
 #### SETUP THE MODEL USING DISC2RADMC #################
 #######################################################
-
+print('Setting up model ...')
 ### PHYSICAL GRID (this only needs to be run once at the beginning to define the model)
 gridmodel=disc2radmc.physical_grid(rmin=rmin, rmax=rmax, Nr=Nr, Nphi=Nphi, Nth=Nth, thmax=thmax, mirror=mirror, logr=logr, axisym=axisym)
 gridmodel.save()
@@ -111,8 +115,8 @@ lammodel.save()
 
 
 ### DUST SIZE DISTRIBUTION AND OPACITY (this only needs to be run once at the beginning)
-# path to optical constants that can be found at
-# https://github.com/SebaMarino/disc2radmc/tree/main/opacities/dust_optical_constants
+## path to optical constants that can be found at
+## https://github.com/SebaMarino/disc2radmc/tree/main/opacities/dust_optical_constants
 path_opct='/Users/Sebamarino/Astronomy/Codes/disc2radmc/opacities/dust_optical_constants/' 
 lnk_files=[path_opct+'astrosilicate_ext.lnk',
            path_opct+'ac_opct.lnk',
@@ -147,11 +151,25 @@ sim=disc2radmc.simulation(nphot=10000000, # number of photon packages for therma
                         modified_random_walk=0, # for very optically thick medium, this is a useful approximation
                         istar_sphere=0, # consider the star a sphere or a point.
                         setthreads=4,
-                        verbose=True, 
-                            )
+                        verbose=False, 
+
+
+
+
+
+                       
+
+#######################################################
+#### RUN RADMC3D USING DISC2RADMC #####################
+#######################################################
+
+                          
+                          )
 ### RUN MCTHERM to compute temperature (only necessary to run once, or every time the grid has changed or if the dust mass is high enough to affect the temperature field, i.e. optically thick)
+print('Running thermal montecarlo ...')
 sim.mctherm()
 
+print('Creating image ...')
 ### MAKE IMAGE
 sim.simimage(dpc=dpc, 
              imagename='MIRI_FQPM', 
