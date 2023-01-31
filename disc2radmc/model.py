@@ -380,7 +380,10 @@ class dust:
         ### size grid
         self.Agrid_edges=np.logspace(np.log10(self.amin), np.log10(self.amax), self.N_species+1)
         self.Agrid=np.sqrt(self.Agrid_edges[1:]*self.Agrid_edges[:-1])
-        self.Mgrid=self.Agrid**(self.slope+4.)
+        if slope!=-4:
+            self.Mgrid=self.Agrid_edges[1:]**(self.slope+4.)-self.Agrid_edges[:-1]**(self.slope+4.)
+        else:
+            self.Mgrid=np.log(self.Agrid_edges[1:]/self.Agrid_edges[:-1])
         self.Mgrid=Mdust*self.Mgrid/np.sum(self.Mgrid)
         
         if isinstance(lnk_file, str): # if one optical constant given
