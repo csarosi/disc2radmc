@@ -468,8 +468,10 @@ class dust:
             file_opacity.close()
 
         os.system('rm ./Tempkappa/*')
-        path='dustopac.inp'
-        file_list_opacities=open(path,'w')
+        os.system('rm '+path+'param.inp')
+
+        pathfile='dustopac.inp'
+        file_list_opacities=open(pathfile,'w')
         file_list_opacities.write("2               Format number of this file \n")
         file_list_opacities.write(str(self.N_species)+"              Nr of dust species \n")
         file_list_opacities.write("============================================================================ \n")
@@ -479,7 +481,6 @@ class dust:
             file_list_opacities.write(self.tag+"_"+str(i+1)+ " Extension of name of dustkappa_***.inp file \n")
             file_list_opacities.write("---------------------------------------------------------------------------- \n")
         file_list_opacities.close()
-        os.system('rm '+path+'param.inp')
 
     def mix_opct_bruggeman(self, pathout='opct_mix.lnk'):
 
