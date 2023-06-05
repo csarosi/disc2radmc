@@ -3,6 +3,8 @@ import os,sys
 from disc2radmc.constants import *
 from disc2radmc.functions_misc import *
 from astropy.io.votable import parse
+home_directory = os.path.expanduser( '~' )
+
 
 class simulation:
     """
@@ -643,7 +645,7 @@ class star:
     A class to define the star and companions
     """
     def __init__(self, lam_grid,
-                 dir_stellar_templates='/Users/Sebamarino/Astronomy/Stellar_templates/BT-Settl/bt-settl/',
+                 dir_stellar_templates=home_directory+'/Astronomy/Stellar_templates/BT-Settl/bt-settl/',
                  Tstar=None,
                  Rstar=None,
                  Mstar=None,
