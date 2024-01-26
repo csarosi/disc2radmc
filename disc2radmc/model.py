@@ -361,7 +361,7 @@ class dust:
     """
     A class used to define the dust size distribution, opacities, and density distribution d
     """
-    def __init__(self, wavelength_grid, Mdust=0.1, lnk_file=None,amin=1.0, amax=1.0e4, slope=-3.5, density=3.0, N_species=1, N_per_bin=50, densities=None, mass_weights=None, tag='i', compute_opct=True ):
+    def __init__(self, wavelength_grid, Mdust=0.1, lnk_file=None,amin=1.0, amax=1.0e4, slope=-3.5, density=3.0, N_species=1, N_per_bin=50, densities=None, mass_weights=None, tag='i', compute_opct=True, mixing_method='Brugemann' ):
         """
         Mdust: dust mass in earth masses
         amin: minimum grain size in um
@@ -401,7 +401,7 @@ class dust:
                 self.lnk_file_p='opct_'+self.tag+'.lnk'
                 if compute_opct:
                     print('Compute average optical constants')
-                    Opct=self.mix_opct_bruggeman(pathout='opct_'+self.tag+'.lnk')
+                    Opct=self.mix_opct(pathout='opct_'+self.tag+'.lnk', mixing_method=mixing_method)
             else:
                 sys.exit('mass_weights or densities do not have right length')
         else:
@@ -484,9 +484,9 @@ class dust:
             file_list_opacities.write("---------------------------------------------------------------------------- \n")
         file_list_opacities.close()
 
-    def mix_opct_bruggeman(self, pathout='opct_mix.lnk'):
+    def mix_opct(self, pathout='opct_mix.lnk', mixing_method='Brugemann'):
 
-        # Mixing rule Bruggeman for max 3 species
+        # Mixing rule Bruggeman for max 3 species or Maxwell-Garnett for 2 species
 
         N_opct=len(self.lnk_file)
        
@@ -497,14 +497,15 @@ class dust:
 
         self.volume_weights=self.volumes/np.sum(self.volumes)
       
-        self.voli=self.volume_weights[1:]/self.volume_weights[0]
+        self.voli=self.volume_weights[:]/self.volume_weights[0]
         
         print("final density = %1.1f g/cm3"%self.density)
 
 
         O1=np.loadtxt(self.lnk_file[0] )
-        O2=np.loadtxt(self.lnk_file[1] )
-   
+        
+        if N_opct>1:
+            O2=np.loadtxt(self.lnk_file[1] )
         if N_opct==3:
             O3=np.loadtxt(self.lnk_file[2] )
             
@@ -514,20 +515,26 @@ class dust:
         for i in range(self.wavelength_grid.Nlam):
 
             n1=Intextpol(O1[:,0],O1[:,1],Opct1[i,0])
-            n2=Intextpol(O2[:,0],O2[:,1],Opct1[i,0])
-
             k1=Intextpol(O1[:,0],O1[:,2],Opct1[i,0])
-            k2=Intextpol(O2[:,0],O2[:,2],Opct1[i,0])
+
+            if N_opct>1:
+                n2=Intextpol(O2[:,0],O2[:,1],Opct1[i,0])
+                k2=Intextpol(O2[:,0],O2[:,2],Opct1[i,0])
 
             if N_opct==3:
                 n3=Intextpol(O3[:,0],O3[:,1],Opct1[i,0])
                 k3=Intextpol(O3[:,0],O3[:,2],Opct1[i,0])
-                
-                eff=effnk(n1,k1,n2,k2,n3,k3,self.voli[0],self.voli[1])
-            else:
-                eff=effnk(n1,k1,n2,k2,0.,0.,self.voli[0],0.)
+                eff=effnk_brugemann(n1,k1,n2,k2,n3,k3,self.voli[1],self.voli[2])
 
+            elif N_opct==2 and mixing_method=='Brugemann':
+                eff=effnk_brugemann(n1,k1,n2,k2,0.,0.,self.voli[1],0.)
+
+            elif N_opct==2 and mixing_method=='MG':
+                eff=effnk_mg(n1,k1,n2,k2,self.volume_weights[1],)
                 
+            else: # one species
+                eff=(n1+k1*1j)**2.
+
             Opct1[i,1]=eff.real
             Opct1[i,2]=eff.imag
 
