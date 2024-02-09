@@ -17,12 +17,11 @@ def rhoz_Gaussian(z, H):
     return np.exp(-(z)**2.0/(2.0*H**2.0))/(np.sqrt(2.0*np.pi)*H)
 
 #### Functions to mix optical constants following Bruggeman's mixing rule
-
-def effnk(n1,k1,n2,k2,n3,k3,f2,f3): 
+def effnk_brugemann(n1,k1,n2,k2,n3,k3,f2,f3): 
 
     # mixing rule Bruggeman http://en.wikipedia.org/wiki/Effective_medium_approximations
     # Sum fi* (epi-ep)/(epi+2ep) = 0, but normilizing by f1
-
+    # fi are the volume fractions normalized by f1
  
     np1=n1+k1*1j # matrix
     np2=n2+k2*1j # inclusion 1
@@ -47,9 +46,22 @@ def effnk(n1,k1,n2,k2,n3,k3,f2,f3):
         effi=roots[i]
         if effi.real>0.0 and effi.imag>0.0:
             return cma.sqrt(effi)
-    ### if nothins satisfy the above condition
+    ### if nothing satisfies the above condition
         
     return -1.0
+
+def effnk_mg(n1,k1,n2,k2,f2): 
+
+    # mixing rule Maxwell-Garnett http://en.wikipedia.org/wiki/Effective_medium_approximations
+    # fi are the volume fractions
+ 
+    np1=n1+k1*1j # matrix
+    np2=n2+k2*1j # inclusion 1
+
+    e1=np1**2.0  # n = sqrt(epsilon_r x mu_r) and mu_r is aprox 1
+    e2=np2**2.0
+    
+    return cma.sqrt(  e1*(2*f2*(e2-e1)+e2+2*e1)/(2*e1+e2-f2*(e2-e1)))
         
 def Intextpol(x,y,xi):
 
