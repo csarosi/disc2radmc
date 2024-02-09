@@ -8,6 +8,8 @@ import cmath as cma
 from disc2radmc.constants import *
 from astropy.io import fits
 from astropy.convolution import convolve_fft
+from scipy.ndimage.interpolation import shift
+
 import os
 
 # function to define vertical distribution
@@ -88,16 +90,16 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     if verbose:
         print('Fstar=', image_in_jypix[0, 0, jstar,istar])
 
-    ### shift image if necessary
-    image_in_jypix_shifted= shift_image(image_in_jypix, mx, my, pixdeg_x, pixdeg_y, omega=omega)
     # PAD IMAGE
-    image_in_jypix_shifted=fpad_image(image_in_jypix_shifted, Npixf, Npixf, nx, ny)
+    image_in_jypix_pad=fpad_image(image_in_jypix, Npixf, Npixf, nx, ny)
 
     # add background sources
     if len(background_args) != 0:
         for iback in background_args:
-            image_in_jypix_shifted=image_in_jypix_shifted + background_object(*iback)
+            image_in_jypix_pad=image_in_jypix_pad + background_object(*iback)
 
+    ### shift image if necessary
+    image_in_jypix_shifted= shift_image(image_in_jypix_pad, mx, my, pixdeg_x, pixdeg_y, omega=omega)
         
     
     if primary_beam is not None:
@@ -452,13 +454,13 @@ def shift_image(image, mx, my, pixdeg_x, pixdeg_y, omega=0.0 ):
     # cp star and remove it
     istar, jstar=star_pix(len(image[0,0,0,:]), omega)
     Fstar=image[0,0,jstar,istar]
-
-    image[0,0,jstar,istar]=0.0
+    # replace star with average around it. This is important if there is a disk
+    image[0,0,jstar,istar]=np.median([image[0,0,jstar-1,istar], image[0,0,jstar+1,istar], image[0,0,jstar,istar-1], image[0,0,jstar,istar+1]])
     
     # shift
     image_shifted=shift(image,shift=shiftVector, order=3)#,mode='wrap')
-    # add star in new position
-    image_shifted[0,0,jstar+int(mvy_pix),istar-int(mvx_pix)]=Fstar
+    # # add star in new position
+    image_shifted[0,0,jstar+int(round(mvy_pix)),istar-int(round(mvx_pix))]=Fstar
 
     return image_shifted
 
