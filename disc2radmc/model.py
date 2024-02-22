@@ -105,7 +105,7 @@ class simulation:
 
         if hasattr(offx, "__len__"):
             for i in range(len(offx)):
-                pathout='images/image_'+imagename+'.field{}_'.format(fields[i])+tag+'.fits'
+                pathout='images/image_'+imagename+'.{}_'.format(fields[i])+tag+'.fits'
                 convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx[i], my=offy[i], x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam, taumap=taumap)
 
         else:
