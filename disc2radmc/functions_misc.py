@@ -88,17 +88,19 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     
     ## if alpha is given, then disc surface brightness and stellar flux are manipulated
     if alpha_dust is not None and new_lambda is not None:
-        Fstar=image_in_jypix[0,0,jstar,istar] # save stellar flux
+        background=np.median([image_in_jypix[0,0,jstar-1,istar], image_in_jypix[0,0,jstar+1,istar], image_in_jypix[0,0,jstar,istar-1], image_in_jypix[0,0,jstar,istar+1]])
+        Fstar=image_in_jypix[0,0,jstar,istar]-background # save stellar flux, but subtract background to not include disc.
         ### apply dust spectral index
-        image_in_jypix[0,0,jstar,istar]=0.0
+        image_in_jypix[0,0,jstar,istar]=background
         image_in_jypix=image_in_jypix*(new_lambda/lam[0])**(-alpha_dust)
         ### apply star spectral index
         Fstar=Fstar*(new_lambda/lam[0])**(-2.0)
-        image_in_jypix[0,0,istar,istar]=Fstar
+        image_in_jypix[0,0,istar,istar]+=Fstar
         
     ### manipulate central flux
     if fstar>=0.0: # change stellar flux given value of fstar.
-        image_in_jypix[:, :, jstar,istar]=fstar
+        background=np.median([image_in_jypix[:,:,jstar-1,istar], image_in_jypix[:,:,jstar+1,istar], image_in_jypix[:,:,jstar,istar-1], image_in_jypix[:,:,jstar,istar+1]])
+        image_in_jypix[:, :, jstar,istar]=fstar+background
     if verbose:
         print('Fstar=', image_in_jypix[0, 0, jstar,istar])
 
