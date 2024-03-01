@@ -56,7 +56,7 @@ class simulation:
         else:
             os.system('radmc3d mctherm > mctherm.log')
 
-    def simimage(self, dpc=1., imagename='', wavelength=880., Npix=256, dpix=0.05, inc=0., PA=0., offx=0.0, offy=0.0, X0=0., Y0=0., tag='', omega=0.0, Npixf=-1, fstar=-1.0, background_args=[], primary_beam=None, taumap=False, fields=[]):
+    def simimage(self, dpc=1., imagename='', wavelength=880., Npix=256, dpix=0.05, inc=0., PA=0., offx=0.0, offy=0.0, X0=0., Y0=0., tag='', omega=0.0, Npixf=-1, fstar=-1.0, background_args=[], primary_beam=None, taumap=False, fields=[], fdisc=None):
         # X0, Y0, stellar position (e.g. useful if using a mosaic)
         # images: array of names for images produced at wavelengths
         # wavelgnths: wavelengths at which to produce image in um
@@ -103,13 +103,13 @@ class simulation:
 
         os.system('mv image.out '+pathin)
 
-        if hasattr(offx, "__len__"):
+        if hasattr(offx, "__len__"): # single pointing
             for i in range(len(offx)):
                 pathout='images/image_'+imagename+'.{}_'.format(fields[i])+tag+'.fits'
-                convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx[i], my=offy[i], x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam, taumap=taumap)
-
-        else:
-            convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam, taumap=taumap)   
+                convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx[i], my=offy[i], x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam, taumap=taumap, fdisc=fdisc)
+ 
+        else: # mosaic
+            convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam, taumap=taumap, fdisc=fdisc)   
     
     def simcube(self, dpc=1., imagename='', mol=1, line=1, vmax=30., Nnu=20, Npix=256, dpix=0.05, inc=0., PA=0., offx=0., offy=0., X0=0., Y0=0., tag='', omega=0., Npixf=-1, fstar=-1., background_args=[], primary_beam=None, vel=False, continuum_subtraction=False):
 
