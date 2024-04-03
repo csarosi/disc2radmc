@@ -808,6 +808,9 @@ class wavelength_grid:
         self.lams=np.logspace(np.log10(self.lammin), np.log10(self.lammax), self.Nlam)
         P=(self.lams[1]-self.lams[0])/self.lams[0]
         self.dlams=P*self.lams
+
+        self.nu=cc*1.0e4/self.lams
+        self.dnu=self.dlams*(cc*1.0e4/self.lams**2) # Hz
         
     def save(self):
         # ----- write wavelength_micron.inp
