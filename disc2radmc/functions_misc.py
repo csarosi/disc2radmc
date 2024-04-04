@@ -17,7 +17,7 @@ def rhoz_Gaussian(z, H):
     return np.exp(-(z)**2.0/(2.0*H**2.0))/(np.sqrt(2.0*np.pi)*H)
 
 #### Functions to mix optical constants following Bruggeman's mixing rule
-def effnk_brugemann(n1,k1,n2,k2,n3,k3,f2,f3): 
+def effnk_bruggeman(n1,k1,n2,k2,n3,k3,f2,f3): 
 
     # mixing rule Bruggeman http://en.wikipedia.org/wiki/Effective_medium_approximations
     # Sum fi* (epi-ep)/(epi+2ep) = 0, but normilizing by f1
