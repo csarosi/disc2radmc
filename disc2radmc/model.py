@@ -366,7 +366,7 @@ class dust:
     """
     A class used to define the dust size distribution, opacities, and density distribution d
     """
-    def __init__(self, wavelength_grid, Mdust=0.1, lnk_file=None,amin=1.0, amax=1.0e4, slope=-3.5, density=3.0, N_species=1, N_per_bin=50, densities=None, mass_weights=None, tag='i', compute_opct=True, mixing_method='Brugemann' ):
+    def __init__(self, wavelength_grid, Mdust=0.1, lnk_file=None,amin=1.0, amax=1.0e4, slope=-3.5, density=3.0, N_species=1, N_per_bin=50, densities=None, mass_weights=None, tag='i', compute_opct=True, mixing_method='Bruggeman' ):
         """
         Mdust: dust mass in earth masses
         amin: minimum grain size in um
@@ -489,7 +489,7 @@ class dust:
             file_list_opacities.write("---------------------------------------------------------------------------- \n")
         file_list_opacities.close()
 
-    def mix_opct(self, pathout='opct_mix.lnk', mixing_method='Brugemann'):
+    def mix_opct(self, pathout='opct_mix.lnk', mixing_method='Bruggeman'):
 
         # Mixing rule Bruggeman for max 3 species or Maxwell-Garnett for 2 species
 
@@ -529,10 +529,10 @@ class dust:
             if N_opct==3:
                 n3=Intextpol(O3[:,0],O3[:,1],Opct1[i,0])
                 k3=Intextpol(O3[:,0],O3[:,2],Opct1[i,0])
-                eff=effnk_brugemann(n1,k1,n2,k2,n3,k3,self.voli[1],self.voli[2])
+                eff=effnk_bruggeman(n1,k1,n2,k2,n3,k3,self.voli[1],self.voli[2])
 
-            elif N_opct==2 and mixing_method=='Brugemann':
-                eff=effnk_brugemann(n1,k1,n2,k2,0.,0.,self.voli[1],0.)
+            elif N_opct==2 and mixing_method=='Bruggeman':
+                eff=effnk_bruggeman(n1,k1,n2,k2,0.,0.,self.voli[1],0.)
 
             elif N_opct==2 and mixing_method=='MG':
                 eff=effnk_mg(n1,k1,n2,k2,self.volume_weights[1],)
