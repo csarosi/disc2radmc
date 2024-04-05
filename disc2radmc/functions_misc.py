@@ -9,6 +9,7 @@ from disc2radmc.constants import *
 from astropy.io import fits
 from astropy.convolution import convolve_fft
 from scipy.ndimage.interpolation import shift
+from scipy import interpolate
 
 import os
 
@@ -70,7 +71,10 @@ def Intextpol(x,y,xi):
     elif xi<=x[Nx-1]: #interpol                                                                                                                                                                                                              
         for l in range(1,Nx):
             if xi<=x[l]:
-                return y[l-1]+(xi-x[l-1])*(y[l]-y[l-1])/(x[l]-x[l-1])
+                # return y[l-1]+(xi-x[l-1])*(y[l]-y[l-1])/(x[l]-x[l-1])
+
+                return y[l-1]*(xi/x[l-1])**(np.log(y[l]/y[l-1])/np.log(x[l]/x[l-1]))
+
 
     elif xi>x[Nx-1]:    #extrapol                                                                                                                                                                                                            
         alpha=np.log(y[Nx-1]/y[Nx-2])/np.log(x[Nx-1]/x[Nx-2])
