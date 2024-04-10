@@ -268,8 +268,13 @@ class gas:
             except:
                 self.Ts=np.fromfile('./dust_temperature.inp', count=self.grid.Nr*self.grid.Nphi*self.grid.Nth+4, dtype=float)[4:].reshape( (self.grid.Nphi, self.grid.Nth, self.grid.Nr))
 
+            # need to swap phi and Th axes
+            self.Ts=np.swapaxes(self.Ts, 0,1)
+            # need to reverse order of Th axis
+            self.Ts=np.flip(self.Ts, axis=0) 
+                
             self.cs=np.sqrt(K*self.Ts/(mu * mp)) # cm/s
-            self.turbulence=np.sqrt(self.alpha_turb)*self.cs # Nphi, Nth, Nr
+            self.turbulence=np.sqrt(self.alpha_turb)*self.cs # Nth, Nphi, Nr
         
     ###############
     ### methods ###
@@ -335,7 +340,7 @@ class gas:
                 
         file_velocity.close() 
 
-    def write_turbulence(self):
+    def write_turbulence(self): 
 
         path='microturbulence.inp'
         file_turbulence=open(path,'w')
@@ -352,12 +357,12 @@ class gas:
             # northern emisphere
             for k in range(self.grid.Nth):
                 for i in range(self.grid.Nr):
-                    file_turbulence.write(str(self.turbulence[j,-(1+k),i])+' \n')
+                    file_turbulence.write(str(self.turbulence[-(1+k),j,i])+' \n')
             if not self.grid.mirror:
                 # southern emisphere
                 for k in range(self.grid.Nth):
                     for i in range(self.grid.Nr):
-                        file_turbulence.write(str(self.turbulence[j, k ,i])+' \n')
+                        file_turbulence.write(str(self.turbulence[k,j,i])+' \n')
                 
         file_turbulence.close() 
         
