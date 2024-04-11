@@ -106,10 +106,10 @@ class simulation:
         if hasattr(offx, "__len__"): # single pointing
             for i in range(len(offx)):
                 pathout='images/image_'+imagename+'.{}_'.format(fields[i])+tag+'.fits'
-                convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx[i], my=offy[i], x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam, taumap=taumap, fdisc=fdisc)
+                convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx[i], my=offy[i], x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam, taumap=taumap, fdisc=fdisc, verbose=self.verbose)
  
         else: # mosaic
-            convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam, taumap=taumap, fdisc=fdisc)   
+            convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, background_args=background_args, tag=tag, primary_beam=primary_beam, taumap=taumap, fdisc=fdisc, verbose=self.verbose)   
     
     def simcube(self, dpc=1., imagename='', mol=1, line=1, vmax=30., Nnu=20, Npix=256, dpix=0.05, inc=0., PA=0., offx=0., offy=0., X0=0., Y0=0., tag='', omega=0., Npixf=-1, fstar=-1., background_args=[], primary_beam=None, vel=False, continuum_subtraction=False):
 
@@ -131,7 +131,7 @@ class simulation:
         pathout='images/image_'+imagename+'_'+tag+'.fits'
         os.system('mv image.out '+pathin)
         
-        convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, continuum_subtraction=continuum_subtraction, background_args=background_args, tag=tag, primary_beam=primary_beam)
+        convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, continuum_subtraction=continuum_subtraction, background_args=background_args, tag=tag, primary_beam=primary_beam, verbose=self.verbose)
 
     def simsed(self, wavelengths=np.logspace(-1,2, 100), dpc=100., outputfile='sed.txt', inc=0., PA=0., omega=0., sizeau=0. ):
 
