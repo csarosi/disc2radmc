@@ -170,7 +170,7 @@ class gas:
     A class used to define the gas species, densities and velocities
     """
 
-    def __init__(self, gas_species=None, star=None, grid=None, Masses=None, masses=None, functions_sigma=None, pars_sigma=None, h=0.05, r0=100., gamma=1.,turbulence=False, alpha_turb=None, functions_rhoz=None, mu=28. , vr=0.0):
+    def __init__(self, gas_species=None, star=None, grid=None, Masses=None, masses=None, functions_sigma=None, pars_sigma=None, h=0.05, r0=100., gamma=1.,turbulence=False, alpha_turb=None, functions_rhoz=None, mu=28. , vr=0.0, pressure_support=False):
         assert gas_species is not None, "Gas species need to be defined"
         assert star is not None, "star needs to be defined as its mass will set the rotation speed"
         assert grid is not None, "grid object needed to define gas density distribution"
@@ -259,9 +259,10 @@ class gas:
         self.vel[0,:,:,:] = vr # vr, cm/s
         self.vel[1,:,:,:] = 0.0 # vtheta, cm/s
         self.vel[2,:,:,:] = np.sqrt(   G * star.Mstar*M_sun * rhom**2/(rm**3)/au    )  # vphi , cm/s
-        
-        # #### define turbulence (IT NEEDS TO KNOW THE SOUND SPEED)
-        if turbulence: # speed in cm/s
+        self.vkep=self.vel[2,:,:,:]*1. # store the Keplerian velocity for quick access
+
+        # #### define sound speed if turbulence or keplerian deviation needed (IT NEEDS TO KNOW THE SOUND SPEED)
+        if turbulence or pressure_support: # speed in cm/s
 
             try:
                 self.Ts=np.fromfile('./dust_temperature.bdat', count=self.grid.Nr*self.grid.Nphi*self.grid.Nth+4, dtype=float)[4:].reshape( (self.grid.Nphi, self.grid.Nth, self.grid.Nr))
@@ -274,8 +275,25 @@ class gas:
             self.Ts=np.flip(self.Ts, axis=0) 
                 
             self.cs=np.sqrt(K*self.Ts/(mu * mp)) # cm/s
-            self.turbulence=np.sqrt(self.alpha_turb)*self.cs # Nth, Nphi, Nr
+
+            if turbulence:
+                self.turbulence=np.sqrt(self.alpha_turb)*self.cs # Nth, Nphi, Nr
+
+        if pressure_support:
+
+            self.P=np.sum(self.rho_g*self.masses, axis=0)*self.cs**2. # cgs
+            self.dPdr=np.gradient(self.P, self.grid.dr*au, axis=2)
         
+            ac = G*star.Mstar*M_sun*rhom*au**(-2)/rm**3. 
+            # add pressure deviation
+            ac+= self.dPdr/np.sum(self.rho_g*self.masses, axis=0)
+            # pressure term can sometimes be larger than Keplerian if gradient is too strong (e.g. exponential drop). Set ac to zero in those cases to avoid negative ac
+            ac[ac<0.]=0.
+    
+            self.vel[2,:,:,:] = np.sqrt(ac*rhom*au) # cm/s
+            
+            
+                
     ###############
     ### methods ###
     ###############
