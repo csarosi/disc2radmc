@@ -401,7 +401,8 @@ def Convolve_beam_cube(path_image, BMAJ, BMIN, BPA):
     path_fits=path_image[:-5]+'_beamconvolved.fits'
     fits.writeto(path_fits, Fout1, header1, output_verify='fix', overwrite=True)
 
-    
+
+
 def load_image(path_image, dpc, taumap=False):
 
     f=open(path_image,'r')
@@ -414,25 +415,14 @@ def load_image(path_image, dpc, taumap=False):
     nf = int(f.readline()) # number of wavelengths
     sizepix_x, sizepix_y = tuple(np.array(f.readline().split(),dtype=float))
 
-    lam = np.empty(nf)
-    for i in range(nf):
-        lam[i] = float(f.readline())
-    
-    f.readline()  
-
-    image = np.zeros((1,nf,ny,nx), dtype=float)
-
-    for k in range(nf):
-        for j in range(ny):
-            for i in range(nx):
-
-                image[0,k,j,i] = float(f.readline())
-
-                # if (j == ny-1) and (i == nx-1):
-                #     f.readline()
-        f.readline()
-
     f.close()
+
+    f=np.loadtxt(path_image, skiprows=4) # empty line is skipped
+
+    lam=f[:nf]
+        
+    image=np.zeros((1,nf,ny,nx), dtype=float)
+    image[0,:,:,:] = f[nf:].reshape(nf, ny, nx)
 
     # Compute the flux in this image as seen at dpc (pc)    
     pixdeg_x = 180.0*(sizepix_x/(dpc*pc))/np.pi
