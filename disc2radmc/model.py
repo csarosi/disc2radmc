@@ -282,7 +282,7 @@ class gas:
         if pressure_support:
 
             self.P=np.sum(self.rho_g*self.masses, axis=0)*self.cs**2. # cgs
-            self.dPdr=np.gradient(self.P, self.grid.dr*au, axis=2)
+            self.dPdr=np.gradient(self.P, self.grid.r*au, axis=2) # cgs
         
             ac = G*star.Mstar*M_sun*rhom*au**(-2)/rm**3. 
             # add pressure deviation
