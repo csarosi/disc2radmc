@@ -389,7 +389,7 @@ class dust:
     """
     A class used to define the dust size distribution, opacities, and density distribution d
     """
-    def __init__(self, wavelength_grid, Mdust=0.1, lnk_file=None,amin=1.0, amax=1.0e4, slope=-3.5, density=3.0, N_species=1, N_per_bin=50, densities=None, mass_weights=None, tag='i', compute_opct=True, mixing_method='Bruggeman' ):
+    def __init__(self, wavelength_grid, Mdust=0.1, lnk_file=None,amin=1.0, amax=1.0e4, slope=-3.5, density=3.0, N_species=1, N_per_bin=50, densities=None, mass_weights=None, tag='i', compute_opct=True, mixing_method='Bruggeman', scattering_matrix=False ):
         """
         Mdust: dust mass in earth masses
         amin: minimum grain size in um
@@ -441,7 +441,10 @@ class dust:
         file_list_opacities.write(str(self.N_species)+"              Nr of dust species \n")
         file_list_opacities.write("============================================================================ \n")
         for i in range(self.N_species):
-            file_list_opacities.write("1               Way in which this dust species is read \n")
+            if scattering_matrix:
+                file_list_opacities.write("10               Way in which this dust species is read \n")
+            else:
+                file_list_opacities.write("1               Way in which this dust species is read \n")
             file_list_opacities.write("0               0=Thermal grain \n")
             file_list_opacities.write(self.tag+"_"+str(i+1)+ " Extension of name of dustkappa_***.inp file \n")
             file_list_opacities.write("---------------------------------------------------------------------------- \n")

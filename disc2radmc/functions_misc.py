@@ -563,3 +563,18 @@ def delete_last_line(file_name, encoding="utf-8"): # adapted from https://stacko
         if pos > 0:
             file.seek(pos, os.SEEK_SET)
             file.truncate()
+
+            
+def get_last2d(data):
+    if data.ndim <= 2:
+        return data
+    slc = [0] * (data.ndim - 2)    
+    slc += [slice(None), slice(None)]
+    return data[tuple(slc)]
+    
+def get_last3d(data):
+    if data.ndim <= 3:
+        return data
+    slc = [0] * (data.ndim - 3)    
+    slc += [slice(None), slice(None), slice(None)]
+    return data[tuple(slc)]
