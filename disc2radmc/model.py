@@ -571,7 +571,7 @@ class dust:
 
         np.savetxt(pathout,Opct1)
 
-    def dust_densities(self, grid=None, function_sigma=None, par_sigma=None, h=0.05, r0=100., gamma=1., functions_rhoz=None):
+    def dust_densities(self, grid=None, function_sigma=None, par_sigma=None, h=0.05, r0=100., gamma=1., a0=1., beta=0., functions_rhoz=None, size_segregation=False):
 
         if functions_rhoz==None:
             self.functions_rhoz=[]
@@ -607,25 +607,24 @@ class dust:
         
         for ia in range(self.N_species):
             M_dust_temp= 0.0
-        
-            # nother emisphere
-            if self.grid.Nth>1: # more than one cell per emisphere
-                self.rho_d[ia,:,:,:]=self.rho_3d_dens(rhom, phim, zm, h, r0, gamma, self.functions_rhoz[ia], function_sigma, *par_sigma)
 
-                # # now south emisphere is copy of nother emisphere
-                # rho_d[ia,Nth-1:,:,:]=rho_d[ia,-Nth::-1,:,:]
-                ### the line above works because this is how step and slicing work https://stackoverflow.com/questions/509211/understanding-slice-notation
-                # a[::-1]    # all items in the array, reversed
-                # a[1::-1]   # the first two items, reversed
-                # a[:-3:-1]  # the last two items, reversed
-                # a[-3::-1]  # everything except the last two items, reversed
-            
-            
-            elif self.grid.Nth==1:# one cell
+            if size_segregation:
+                # nother emisphere
+                if self.grid.Nth>1: # more than one cell per emisphere
+                    self.rho_d[ia,:,:,:]=self.rho_3d_dens_seg(rhom, phim, zm, h, r0, gamma, self.Agrid[ia], a0, beta, self.functions_rhoz[ia], function_sigma, *par_sigma)
 
-                self.rho_d[ia,:,:,:]=function_sigma(rhom, phim, *par_sigma)/(self.grid.dth[0]*rhom) # rho_3d_dens(rho, 0.0, 0.0, hs, sigmaf, *args )
-                # rho_d[ia,1,:,:]=rho_d[ia,0,:,:]
+                elif self.grid.Nth==1:# one cell
+                    self.rho_d[ia,:,:,:]=function_sigma(rhom, phim, self.Agrid[ia], *par_sigma)/(self.grid.dth[0]*rhom) 
 
+            else:
+                # nother emisphere
+                if self.grid.Nth>1: # more than one cell per emisphere
+                    self.rho_d[ia,:,:,:]=self.rho_3d_dens(rhom, phim, zm, h, r0, gamma, self.functions_rhoz[ia], function_sigma, *par_sigma)
+
+                elif self.grid.Nth==1:# one cell
+                    self.rho_d[ia,:,:,:]=function_sigma(rhom, phim, *par_sigma)/(self.grid.dth[0]*rhom) 
+
+                
             M_dust_temp=2.*np.sum(self.rho_d[ia,:,:,:]*(dphim*rhom)*(drm)*(dthm*rm))*au**3.0
             self.rho_d[ia,:,:,:]=self.rho_d[ia,:,:,:]*self.Mgrid[ia]/M_dust_temp*M_earth
 
@@ -637,12 +636,18 @@ class dust:
     def rho_3d_dens(rho, phi, z, h, r0, gamma,  function_rhoz, function_sigma, *arguments ):
         H=h*r0*(rho/r0)**gamma # au
         return function_sigma(rho,phi, *arguments)*function_rhoz(z,H)
-    
-    # @staticmethod
-    # def rho_3d_dens(rho, phi, z, h, r0, gamma, function_sigma, *arguments ):
-    #     H=h*r0*(rho/r0)**gamma # au
-    #     return function_sigma(rho,phi, *arguments)*np.exp(-z**2.0/(2.0*H**2.0))/(np.sqrt(2.0*np.pi)*H)
+
+    @staticmethod
+    def rho_3d_dens_seg(rho, phi, z, h, r0, gamma, a, a0=1., beta=0., function_rhoz=rhoz_Gaussian, function_sigma=None, *arguments ):
+        """
+        a0   :  reference grain size in um
+        a    :  grain size in um
+        beta : exponent of vertical distribution segregation 
+        """
         
+        H=h*r0*(rho/r0)**gamma * (a/a0)**beta # au
+        return function_sigma(rho,phi, a, *arguments)*function_rhoz(z,H)
+            
         
     def write_density(self):
 
