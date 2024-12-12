@@ -271,6 +271,25 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
 
 
 
+def xyarray(Np, ps_arcsec):
+
+    xedge=np.zeros(Np+1)
+    yedge=np.zeros(Np+1)
+
+    xs=np.zeros(Np)
+    ys=np.zeros(Np)
+
+    for i in range(Np+1):
+
+        xedge[i]=-(i-Np/2.0)*ps_arcsec#-ps_arcsec/2.0        
+        yedge[i]=(i-Np/2.0)*ps_arcsec#+ps_arcsec/2.0
+
+    for i in range(Np):
+        xs[i]=-(i-Np/2.0)*ps_arcsec-ps_arcsec/2.0           
+        ys[i]=(i-Np/2.0)*ps_arcsec+ps_arcsec/2.0
+
+    return xs, ys, xedge, yedge
+    
 def Convolve_beam(path_image, BMAJ, BMIN, BPA, tag_out=''):
 
     ### BMAJ, BMIN and BPA in deg
@@ -315,15 +334,13 @@ def Convolve_beam(path_image, BMAJ, BMIN, BPA, tag_out=''):
     # Fout1=interpol(N,M,ps1,ps2,Fin1,sigx,sigy,theta)
 
     Gaussimage=np.zeros((N,N))
-    for j in range(N):
-        for i in range(N):
-            x=(i-N/2.0)*ps2
-            y=(j-N/2.0)*ps2
-            Gaussimage[j,i]=Gauss2d(x,y,0.0,0.0,sigx,sigy,theta)
-    # Gaussimage=Gaussimage/np.max(Gaussimage)
 
+    xs, ys, xedge, yedge = xyarray(N, ps2)
+    xm, ym = np.meshgrid(xs, ys)
 
-    Fout1=convolve_fft(Fin1,Gaussimage, normalize_kernel=False)
+    Gaussimage=Gauss2d(xm,ym,0.0,0.0,sigx,sigy,theta)
+    
+    Fout1=convolve_fft(Fin1,Gaussimage, normalize_kernel=False, allow_huge=True)
 
 
 
@@ -379,17 +396,14 @@ def Convolve_beam_cube(path_image, BMAJ, BMIN, BPA):
 
     # Fout1=interpol(N,M,ps1,ps2,Fin1,sigx,sigy,theta)
 
-    Gaussimage=np.zeros((N,N))
-    for j in range(N):
-        for i in range(N):
-            x=(i-N/2.0)*ps2
-            y=(j-N/2.0)*ps2
-            Gaussimage[j,i]=Gauss2d(x,y,0.0,0.0,sigx,sigy,theta)
-    # Gaussimage=Gaussimage/np.max(Gaussimage)
 
+    xs, ys, xedge, yedge = xyarray(N, ps2)
+    xm, ym = np.meshgrid(xs, ys)
+    Gaussimage=Gauss2d(xm,ym,0.0,0.0,sigx,sigy,theta)
+    
     Fout1=np.zeros((1,Nf,N,N))
     for k in range(Nf):
-        Fout1[0,k,:,:]=convolve_fft(Fin1[0,k,:,:],Gaussimage, normalize_kernel=False)
+        Fout1[0,k,:,:]=convolve_fft(Fin1[0,k,:,:],Gaussimage, normalize_kernel=False, allow_huge=True)
 
 
     header1['BMIN'] = BMIN
