@@ -211,13 +211,12 @@ class gas:
 
 
 
-        ### grid
-        
-        thetam, phim, rm=np.meshgrid(self.grid.th, self.grid.phi, self.grid.r, indexing='ij' ) # Theta is ordered from midplane to North pole. Theta is still the angle from the equator.
-        dthm, dphim, drm = np.meshgrid(self.grid.dth, self.grid.dphi, self.grid.dr, indexing='ij' )
+        # ### grid        
+        # self.thetam, self.phim, self.rm=np.meshgrid(self.grid.th, self.grid.phi, self.grid.r, indexing='ij' ) # Theta is ordered from midplane to North pole. Theta is still the angle from the equator.
+        # self.dthm, self.dphim, self.drm = np.meshgrid(self.grid.dth, self.grid.dphi, self.grid.dr, indexing='ij' )
 
-        rhom=rm*np.cos(thetam) 
-        zm=rm*np.sin(thetam)
+        # self.rhom=rm*np.cos(self.thetam) 
+        # self.zm=rm*np.sin(self.thetam)
 
         #################################################################    
         ### define the density field
@@ -232,7 +231,7 @@ class gas:
             M_gas_temp= 0.0
         
             if self.grid.Nth>1: # more than one cell per emisphere
-                self.rho_g[ia,:,:,:]=self.rho_3d_dens(rhom, phim, zm, h, r0, gamma, self.functions_rhoz[ia], functions_sigma[ia], *pars_sigma[ia])
+                self.rho_g[ia,:,:,:]=self.rho_3d_dens(self.grid.rhom, self.grid.phim, self.grid.zm, h, r0, gamma, self.functions_rhoz[ia], functions_sigma[ia], *pars_sigma[ia])
 
                 # # now south emisphere is copy of nother emisphere
                 # rho_d[ia,Nth-1:,:,:]=rho_d[ia,-Nth::-1,:,:]
@@ -244,10 +243,10 @@ class gas:
             
             elif self.grid.Nth==1:# one cell
 
-                self.rho_g[ia,:,:,:]=functions_sigma[ia](rhom, phim, *pars_sigma[ia])/(self.grid.dth[0]*rhom) # rho_3d_dens(rho, 0.0, 0.0, hs, sigmaf, *args )
+                self.rho_g[ia,:,:,:]=functions_sigma[ia](self.grid.rhom, self.grid.phim, *pars_sigma[ia])/(self.grid.dth[0]*self.grid.rhom) # rho_3d_dens(rho, 0.0, 0.0, hs, sigmaf, *args )
                 # rho_d[ia,1,:,:]=rho_d[ia,0,:,:]
         
-            M_gas_temp=2.*np.sum(self.rho_g[ia,:,:,:]*(dphim*rhom)*(drm)*(dthm*rm))*au**3.0
+            M_gas_temp=2.*np.sum(self.rho_g[ia,:,:,:]*(self.grid.dphim*self.grid.rhom)*(self.grid.drm)*(self.grid.dthm*self.grid.rm))*au**3.0
             self.rho_g[ia,:,:,:]=self.rho_g[ia,:,:,:]*self.Masses[ia]/M_gas_temp*M_earth /self.masses[ia] # 1/cm3
 
         #################################################################
@@ -258,7 +257,7 @@ class gas:
 
         self.vel[0,:,:,:] = vr # vr, cm/s
         self.vel[1,:,:,:] = 0.0 # vtheta, cm/s
-        self.vel[2,:,:,:] = np.sqrt(   G * star.Mstar*M_sun * rhom**2/(rm**3)/au    )  # vphi , cm/s
+        self.vel[2,:,:,:] = np.sqrt(   G * star.Mstar*M_sun * self.grid.rhom**2/(rm**3)/au    )  # vphi , cm/s
         self.vkep=self.vel[2,:,:,:]*1. # store the Keplerian velocity for quick access
 
         # #### define sound speed if turbulence or keplerian deviation needed (IT NEEDS TO KNOW THE SOUND SPEED)
@@ -284,13 +283,13 @@ class gas:
             self.P=np.sum(self.rho_g*self.masses, axis=0)*self.cs**2. # cgs
             self.dPdr=np.gradient(self.P, self.grid.r*au, axis=2) # cgs
         
-            ac = G*star.Mstar*M_sun*rhom*au**(-2)/rm**3. 
+            ac = G*star.Mstar*M_sun*self.grid.rhom*au**(-2)/self.grid.rm**3. 
             # add pressure deviation
             ac+= self.dPdr/np.sum(self.rho_g*self.masses, axis=0)
             # pressure term can sometimes be larger than Keplerian if gradient is too strong (e.g. exponential drop). Set ac to zero in those cases to avoid negative ac
             ac[ac<0.]=0.
     
-            self.vel[2,:,:,:] = np.sqrt(ac*rhom*au) # cm/s
+            self.vel[2,:,:,:] = np.sqrt(ac*self.grid.rhom*au) # cm/s
             
             
                 
@@ -592,18 +591,11 @@ class dust:
         self.grid=grid
         self.rho_d=np.zeros((self.N_species,self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # density field (only norther emisphere)
 
-        thetam, phim, rm=np.meshgrid(self.grid.th, self.grid.phi, self.grid.r, indexing='ij' ) # so it goes from Northpole to equator. theta is still the angle from the equator.
+        # thetam, phim, rm=np.meshgrid(self.grid.th, self.grid.phi, self.grid.r, indexing='ij' ) # so it goes from Northpole to equator. theta is still the angle from the equator.
+        # dthm, dphim, drm = np.meshgrid(self.grid.dth, self.grid.dphi, self.grid.dr, indexing='ij' )
+        # rhom=rm*np.cos(thetam) 
+        # zm=rm*np.sin(thetam)
 
-
-        # if grid.Nphi>1:
-        #     dThm, dPhim, dRm = np.meshgrid(Thedge[1:]-Thedge[:-1], Phiedge[1:]-Phiedge[:-1], Redge[1:]-Redge[:-1], indexing='ij' )
-        # else:
-        dthm, dphim, drm = np.meshgrid(self.grid.dth, self.grid.dphi, self.grid.dr, indexing='ij' )
-
-        rhom=rm*np.cos(thetam) 
-        zm=rm*np.sin(thetam)
-
-        # Ms=ddist.Mgrid
         
         for ia in range(self.N_species):
             M_dust_temp= 0.0
@@ -611,22 +603,77 @@ class dust:
             if size_segregation:
                 # nother emisphere
                 if self.grid.Nth>1: # more than one cell per emisphere
-                    self.rho_d[ia,:,:,:]=self.rho_3d_dens_seg(rhom, phim, zm, h, r0, gamma, self.Agrid[ia], a0, beta, self.functions_rhoz[ia], function_sigma, *par_sigma)
+                    self.rho_d[ia,:,:,:]=self.rho_3d_dens_seg(self.grid.rhom, self.grid.phim, self.grid.zm, h, r0, gamma, self.Agrid[ia], a0, beta, self.functions_rhoz[ia], function_sigma, *par_sigma)
 
                 elif self.grid.Nth==1:# one cell
-                    self.rho_d[ia,:,:,:]=function_sigma(rhom, phim, self.Agrid[ia], *par_sigma)/(self.grid.dth[0]*rhom) 
+                    self.rho_d[ia,:,:,:]=function_sigma(self.grid.rhom, self.grid.phim, self.Agrid[ia], *par_sigma)/(self.grid.dth[0]*self.grid.rhom) 
 
             else:
                 # nother emisphere
                 if self.grid.Nth>1: # more than one cell per emisphere
-                    self.rho_d[ia,:,:,:]=self.rho_3d_dens(rhom, phim, zm, h, r0, gamma, self.functions_rhoz[ia], function_sigma, *par_sigma)
+                    self.rho_d[ia,:,:,:]=self.rho_3d_dens(self.grid.rhom, self.grid.phim, self.grid.zm, h, r0, gamma, self.functions_rhoz[ia], function_sigma, *par_sigma)
 
                 elif self.grid.Nth==1:# one cell
-                    self.rho_d[ia,:,:,:]=function_sigma(rhom, phim, *par_sigma)/(self.grid.dth[0]*rhom) 
+                    self.rho_d[ia,:,:,:]=function_sigma(self.grid.rhom, self.grid.phim, *par_sigma)/(self.grid.dth[0]*self.grid.rhom) 
 
                 
-            M_dust_temp=2.*np.sum(self.rho_d[ia,:,:,:]*(dphim*rhom)*(drm)*(dthm*rm))*au**3.0
+            M_dust_temp=2.*np.sum(self.rho_d[ia,:,:,:]*(self.grid.dphim*self.grid.rhom)*(self.grid.drm)*(self.grid.dthm*self.grid.rm))*au**3.0
             self.rho_d[ia,:,:,:]=self.rho_d[ia,:,:,:]*self.Mgrid[ia]/M_dust_temp*M_earth
+
+
+    ## dust density from X,Y,Z positions (same density for all species in current implementation)
+    def dust_densities_Nbody(self, grid=None, positions=[], fmt='XYZ'):
+
+        # positions: [au or rad],  array with position of particles with shape (Nparticles, Ndim) 
+        
+        
+        assert grid is not None, "grid object needed to define dust density distribution"
+        assert positions!=[], "empty array with positions"
+
+        self.grid=grid
+        self.rho_d=np.zeros((self.N_species,self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # density field (only norther emisphere)
+
+        # thetam, phim, rm=np.meshgrid(self.grid.th, self.grid.phi, self.grid.r, indexing='ij' ) # so it goes from Northpole to equator. theta is still the angle from the equator.
+        # dthm, dphim, drm = np.meshgrid(self.grid.dth, self.grid.dphi, self.grid.dr, indexing='ij' )
+        # rhom=rm*np.cos(thetam) 
+        # zm=rm*np.sin(thetam)
+        
+        if fmt=='XYZ':
+            # array with x,y,z positions in au
+            print('converting xyz positions to theta, phi, r')
+            rs=np.sqrt(positions[:,0]**2+positions[:,1]**2+positions[:,2]**2) # radius in sphe
+            rhos=np.sqrt(positions[:,0]**2+positions[:,1]**2) # radius in polar coordinates
+            phis=np.arctan2(positions[:,1], positions[:,0]) # from -pi to pi
+            phis[phis<0.]=phis[phis<0.]+2*np.pi # from 0 to 2pi
+            thetas=np.arctan2(positions[:,2], rhos)
+            pos=np.array( [thetas,phis,rs] ).T
+            
+        elif fmt=='THETAPHIR':
+            print('positions in theta, phi, r format')
+            pos=positions
+            
+        elif fmt=='RPHITHETA':
+            print('converting r,  phi, theta to theta, phi, r')
+            pos=np.array([positions[:,2],positions[:,1],positions[:,0]]).T
+        else:
+            sys.exit('Not a valid format ')
+            
+        density, edges=np.histogramdd( pos, bins=(self.grid.thedge,self.grid.phiedge,self.grid.redge), density=True)
+
+        
+        for ia in range(self.N_species):
+            M_dust_temp= 0.0
+
+            # nother emisphere
+            if self.grid.Nth>1: # more than one cell per emisphere
+                self.rho_d[ia,:,:,:]=density
+
+            elif self.grid.Nth==1:# one cell
+                self.rho_d[ia,:,:,:]=density
+
+            M_dust_temp=2.*np.sum(self.rho_d[ia,:,:,:]*(self.grid.dphim*self.grid.rhom)*(self.grid.drm)*(self.grid.dthm*self.grid.rm))*au**3.0
+            self.rho_d[ia,:,:,:]=self.rho_d[ia,:,:,:]*self.Mgrid[ia]/M_dust_temp*M_earth
+            
 
 
     ###############
@@ -950,6 +997,13 @@ class physical_grid:
 
         self.Ncells=self.Nr*self.Nphi*self.Nth
         if self.mirror==False: self.Ncells=self.Ncells*2
+
+
+        self.thetam, self.phim, self.rm=np.meshgrid(self.th, self.phi, self.r, indexing='ij' ) # Theta is ordered from midplane to North pole. Theta is still the angle from the equator.
+        self.dthm, self.dphim, self.drm = np.meshgrid(self.dth, self.dphi, self.dr, indexing='ij' )
+
+        self.rhom=self.rm*np.cos(self.thetam) 
+        self.zm=self.rm*np.sin(self.thetam)
         
     def save(self):
     
