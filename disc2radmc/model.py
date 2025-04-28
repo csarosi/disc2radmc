@@ -388,7 +388,7 @@ class dust:
     """
     A class used to define the dust size distribution, opacities, and density distribution d
     """
-    def __init__(self, wavelength_grid, Mdust=0.1, lnk_file=None,amin=1.0, amax=1.0e4, slope=-3.5, density=3.0, N_species=1, N_per_bin=50, densities=None, mass_weights=None, tag='i', compute_opct=True, mixing_method='Bruggeman', scattering_matrix=False ):
+    def __init__(self, wavelength_grid, Mdust=0.1, lnk_file=None,amin=1.0, amax=1.0e4, slope=-3.5, density=3.0, N_species=1, N_per_bin=50, densities=None, mass_weights=None, tag='i', compute_opct=True, mixing_method='Bruggeman', scattering_matrix=False, porosity=0. ):
         """
         Mdust: dust mass in earth masses
         amin: minimum grain size in um
@@ -428,7 +428,7 @@ class dust:
                 self.lnk_file_p='opct_'+self.tag+'.lnk'
                 if compute_opct:
                     print('Compute average optical constants')
-                    Opct=self.mix_opct(pathout='opct_'+self.tag+'.lnk', mixing_method=mixing_method)
+                    Opct=self.mix_opct(pathout='opct_'+self.tag+'.lnk', mixing_method=mixing_method, porosity=porosity)
             else:
                 sys.exit('mass_weights or densities do not have right length')
         else:
@@ -514,25 +514,33 @@ class dust:
             file_list_opacities.write("---------------------------------------------------------------------------- \n")
         file_list_opacities.close()
 
-    def mix_opct(self, pathout='opct_mix.lnk', mixing_method='Bruggeman'):
+
+    def mix_opct(self, pathout='opct_mix.lnk', mixing_method='Bruggeman', porosity=0.):
 
         # Mixing rule Bruggeman for max 3 species or Maxwell-Garnett for 2 species
-
+        # porosity should range between 0 and 1.
+        assert porosity<1. and porosity>=0., "Porosity should range between [0,1)"
+        
+        
         N_opct=len(self.lnk_file)
        
 
         self.volumes=self.mass_weights/self.densities
        
-        self.density=np.sum(self.mass_weights)/np.sum(self.volumes) # final density
-
-        self.volume_weights=self.volumes/np.sum(self.volumes)
+        self.volume_weights=self.volumes/np.sum(self.volumes) # volume fractions that sum 1
       
-        self.voli=self.volume_weights[:]/self.volume_weights[0]
+        self.voli=self.volume_weights[:]/self.volume_weights[0] # normalized to the volume weight of the first species as required in Bruggeman rule's implementation
+
+        self.density_solid=np.sum(self.mass_weights)/np.sum(self.volumes) # solid density before incorporating porosity
+
+        self.porosity=porosity
+
+        self.density=self.density_solid*(1.-self.porosity) # solid density before incorporating porosity
         
         print("final density = %1.1f g/cm3"%self.density)
 
 
-        O1=np.loadtxt(self.lnk_file[0] )
+        O1=np.loadtxt(self.lnk_file[0] ) # array for effective refractive index (n+jk)
         
         if N_opct>1:
             O2=np.loadtxt(self.lnk_file[1] )
@@ -560,15 +568,37 @@ class dust:
                 eff=effnk_bruggeman(n1,k1,n2,k2,0.,0.,self.voli[1],0.)
 
             elif N_opct==2 and mixing_method=='MG':
-                eff=effnk_mg(n1,k1,n2,k2,self.volume_weights[1],)
+                eff=effnk_mg(n1,k1,n2,k2,self.volume_weights[1])
                 
             else: # one species
-                eff=(n1+k1*1j)**2.
+                eff=n1+k1*1j
 
             Opct1[i,1]=eff.real
             Opct1[i,2]=eff.imag
 
-        np.savetxt(pathout,Opct1)
+        # now we add porosity using Maxwell Garnet Equation
+        if self.porosity>0: 
+            vol_vac=self.porosity
+            Opctf=np.zeros((self.wavelength_grid.Nlam,3))
+            Opctf[:,0]=self.wavelength_grid.lams
+
+            for i in range(self.wavelength_grid.Nlam):
+
+                # refractive index of vacuum
+                nv=1.000001 # Vosgchinnikov+2005 https://www.aanda.org/articles/aa/abs/2005/02/aa3679/aa3679.html
+                kv=0.       # Vosgchinnikov+2005 https://www.aanda.org/articles/aa/abs/2005/02/aa3679/aa3679.html
+
+                eff=effnk_mg(Opct1[i,1],Opct1[i,2],nv,kv,vol_vac)
+
+                Opctf[i,1]=eff.real
+                Opctf[i,2]=eff.imag
+                
+        else:
+            Opctf=Opct1
+
+        np.savetxt(pathout,Opctf)
+
+    
 
     def dust_densities(self, grid=None, function_sigma=None, par_sigma=None, h=0.05, r0=100., gamma=1., a0=1., beta=0., functions_rhoz=None, size_segregation=False):
 
