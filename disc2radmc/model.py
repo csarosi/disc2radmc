@@ -588,7 +588,10 @@ class dust:
                 nv=1.000001 # Vosgchinnikov+2005 https://www.aanda.org/articles/aa/abs/2005/02/aa3679/aa3679.html
                 kv=0.       # Vosgchinnikov+2005 https://www.aanda.org/articles/aa/abs/2005/02/aa3679/aa3679.html
 
-                eff=effnk_mg(Opct1[i,1],Opct1[i,2],nv,kv,vol_vac)
+                if mixing_method=='MG':
+                    eff=effnk_mg(Opct1[i,1],Opct1[i,2],nv,kv,vol_vac)
+                else:
+                    eff=effnk_bruggeman(Opct1[i,1],Opct1[i,2],nv,kv,0.,0.,vol_vac/(1-vol_vac),0.)
 
                 Opctf[i,1]=eff.real
                 Opctf[i,2]=eff.imag
