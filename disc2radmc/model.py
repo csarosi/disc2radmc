@@ -520,7 +520,7 @@ class dust:
         # Mixing rule Bruggeman for max 3 species or Maxwell-Garnett for 2 species
         # porosity should range between 0 and 1.
         assert porosity<1. and porosity>=0., "Porosity should range between [0,1)"
-        
+        assert mixing_method=='Bruggeman' or  mixing_method=='MG', "Mixing method different from Bruggeman or MG (Maxwell-Garnett)"
         
         N_opct=len(self.lnk_file)
        
