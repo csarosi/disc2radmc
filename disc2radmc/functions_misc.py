@@ -83,7 +83,7 @@ def Intextpol(x,y,xi):
 
 ### functions to manipulate images
 
-def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y0=0.0, omega=0.0, fstar=-1.0, vel=False, continuum_subtraction=False, background_args=[], tag='', primary_beam=None, alpha_dust=None, new_lambda=None,verbose=False, taumap=False, fdisc=None):
+def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y0=0.0, omega=0.0, fstar=-1.0, vel=False, continuum_subtraction=False, background_args=[], tag='', primary_beam=None, alpha_dust=None, new_lambda=None,verbose=False, taumap=False, fdisc=None, vr_star=0.):
     # alpha is defined as the spectral index in frequency space, and thus is positive for a typical disc and star at mm wavelengths
     
     ### load image
@@ -160,9 +160,31 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
 
 
     ### image cube
-    elif not taumap: 
-        delta_freq= (lam[0] - lam[1])*cc*1.0e4/lam[nf//2]**2.0 # Hz
-        delta_velocity = (lam[1] - lam[0])*cc*1e-5/lam0 # km/s
+    elif not taumap:
+
+        # get line rest wavelength
+        # assumes line is centred so v=0 at center of the grid
+        mid = nf // 2
+        if nf % 2 == 0:
+            lam_line=0.5 * (lam[mid - 1] + lam[mid]) # mu
+        else:
+            lam_line=lam[mid] # mu
+
+        # get line rest frequency
+        freq_line=cc*1.0e4/lam_line # Hz
+
+        # contruct velocity array
+        vels=(lam-lam_line)/lam_line*cc*1e-5 # km/s
+        
+        # apply velocity doppler shift
+        vels=vels+vr_star
+
+        # recalculate wavelength grid
+        lam=lam_line*(1.+vels*1.0e5/cc)
+        freq=cc*1e4/lam # Hz
+        
+        delta_velocity = vels[1]-vels[0] # km/s
+        delta_freq= freq[0] - freq[1]    # Hz
 
         if continuum_subtraction: # subtract continuum assuming it varies linearly with wavelength
             if verbose: print('subtracting continuum')
@@ -186,9 +208,8 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     # header['LONPOLE']=180.0
 
     header['EQUINOX']=2000.0
-    header['SPECSYS']='LSRK'
-    header['RESTFREQ']=reffreq
-    header['VELREF']=0.0
+    header['SPECSYS']='BARYCENT'
+    header['VELREF']=258 # FROM ALMA cube / 1 LSR, 2 HEL, 3 OBS, +256 Radio 
     if nf==1:
         header['CTYPE3']='FREQ'
         header['CRPIX3'] = 1.0
@@ -234,7 +255,7 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
 
     # FREQ
     if nf > 1:
-        if vel==True:
+        if vel==True:  ### not fully tested
             print(lam[int(nf//2)+1])
             # multiple frequencies - set up the header keywords to define the
             #    third axis as frequency
@@ -242,29 +263,25 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
             header['CUNIT3'] = 'km/s'
             header['CRPIX3'] = int(nf//2)+1
             if nf%2==0: # even
-                header['CRVAL3'] = delta_velocity/2.
+                header['CRVAL3'] = delta_velocity/2.+vr_star
             else:
-                header['CRVAL3'] = 0.0
-            # Calculate the frequency step, assuming equal steps between all:
-            header['CDELT3'] = delta_velocity
-            header['RESTFRQ']=cc/(lam[int(nf//2)]*1.0e-4)
+                header['CRVAL3'] = 0.0 + vr_star
+            header['CDELT3']  = delta_velocity
+            header['RESTFRQ'] = freq_line
 
         else:
-            header['CTYPE3'] = 'FREQ-LSR'
+            header['CTYPE3'] = 'FREQ'
             header['CUNIT3'] = 'HZ'
             header['CRPIX3'] = int(nf//2)+1
-            header['CRVAL3'] = cc*1.0e4/lam[int(nf//2)] # central channel if odd, 
+            header['CRVAL3'] = freq[nf//2]
             # Calculate the frequency step, assuming equal steps between all:
-            header['CDELT3'] = delta_freq
-            header['RESTFRQ']=cc/(lam[int(nf//2)]*1.0e-4)
+            header['CDELT3']  = delta_freq
+            header['RESTFRQ'] = freq_line
     else:                # only one frequency
-        header['RESTFRQ'] = cc/(lam[0]*1.0e-4)
-
-    header['CUNIT3'] = 'Hz'
+        header['RESTFRQ'] = reffreq
+        header['CUNIT3'] = 'Hz'
 
     # Make a FITS file!
-    #
-
    
     image_in_jypix_float=image_in_jypix_shifted.astype(np.float32)
     fits.writeto(path_fits, image_in_jypix_float, header, output_verify='fix', overwrite=True)
