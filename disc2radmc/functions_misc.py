@@ -184,7 +184,7 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
         freq=cc*1e4/lam # Hz
         
         delta_velocity = vels[1]-vels[0] # km/s
-        delta_freq= freq[0] - freq[1]    # Hz
+        delta_freq= freq[1] - freq[0]    # Hz
 
         if continuum_subtraction: # subtract continuum assuming it varies linearly with wavelength
             if verbose: print('subtracting continuum')
