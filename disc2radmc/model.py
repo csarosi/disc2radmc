@@ -282,8 +282,12 @@ class gas:
         if pressure_support:
 
             self.P=np.sum(self.rho_g*self.masses, axis=0)*self.cs**2. # cgs
-            self.dPdr=np.gradient(self.P, self.grid.r*au, axis=2) # cgs
-        
+            ### old version that assume dP/dR=dP/dr (spherical R = cylindrical r)
+            # self.dPdr=np.gradient(self.P, self.grid.r*au, axis=2) # cgs
+
+            ### dP/dr = dP/dR * dR/dr + dP/dtheta * dtheta/dr (derived using r,z as a function of R, theta)
+            self.dPdr=np.gradient(self.P, self.grid.r*au, axis=2)*np.cos(self.grid.thetam) - np.gradient(self.P, self.grid.th, axis=0)*np.sin(self.grid.thetam)/(self.grid.rm*au) # cgs
+            
             ac = G*star.Mstar*M_sun*self.grid.rhom*au**(-2)/self.grid.rm**3. 
             # add pressure deviation
             ac+= self.dPdr/np.sum(self.rho_g*self.masses, axis=0)
@@ -1007,7 +1011,7 @@ class physical_grid:
         self.r=(self.redge[1:]+self.redge[:-1])/2.
 
 
-        ### Theta 
+        ### Theta (measured from midplane)
         if self.logtheta and self.Nth>2: # log sampling
 
             self.thedge=np.zeros(self.Nth+1)
