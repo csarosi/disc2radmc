@@ -595,6 +595,19 @@ def delete_last_line(file_name, encoding="utf-8"): # adapted from https://stacko
             file.seek(pos, os.SEEK_SET)
             file.truncate()
 
+def delete_line_from_file(file_path, target_string):
+    # Read all lines from the file
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    # Filter out lines that match the target string
+    new_lines = [line for line in lines if target_string not in line]
+
+    # Write the updated lines back to the file
+    with open(file_path, 'w') as file:
+        file.writelines(new_lines)
+
+            
             
 def get_last2d(data):
     if data.ndim <= 2:

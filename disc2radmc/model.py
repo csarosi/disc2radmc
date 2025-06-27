@@ -34,7 +34,8 @@ class simulation:
         radmc_file.write('scattering_mode_max = %1.0f \n'%self.scattering_mode)
         radmc_file.write('modified_random_walk = %1.0f \n'%self.modified_random_walk)
         radmc_file.write('istar_sphere= %1.0f \n'%self.istar_sphere)
-        radmc_file.write('tgas_eq_tdust=%1.0f \n'%self.tgas_eq_tdust)
+        if tgas_eq_tdust==1: # if gas temperature is assumed to be same as dust 
+            radmc_file.write('tgas_eq_tdust=%1.0f \n'%self.tgas_eq_tdust)            
         radmc_file.write('incl_lines = %1.0f \n'%self.incl_lines)
         radmc_file.write('lines_mode=1 \n')
         radmc_file.write('setthreads = %1.0f \n'%self.setthreads)
@@ -171,7 +172,7 @@ class gas:
     A class used to define the gas species, densities and velocities
     """
 
-    def __init__(self, gas_species=None, star=None, grid=None, Masses=None, masses=None, functions_sigma=None, pars_sigma=None, h=0.05, r0=100., gamma=1.,turbulence=False, alpha_turb=None, functions_rhoz=None, mu=28. , vr=0.0, pressure_support=False):
+    def __init__(self, gas_species=None, star=None, grid=None, Masses=None, masses=None, functions_sigma=None, pars_sigma=None, h=0.05, r0=100., gamma=1.,turbulence=False, alpha_turb=None, functions_rhoz=None, mu=28. , vr=0.0, pressure_support=False, gasT=False, rc=100, Tc=20, beta=-0.5):
         assert gas_species is not None, "Gas species need to be defined"
         assert star is not None, "star needs to be defined as its mass will set the rotation speed"
         assert grid is not None, "grid object needed to define gas density distribution"
@@ -179,7 +180,7 @@ class gas:
         assert pars_sigma is not None, "parameters for the surface density profile needed to define gas density distribution"
         assert Masses is not None, "Total gas mass of each species not given"
         assert masses is not None, "molecular mass of each species not given"
-
+        
         if turbulence:
             assert alpha_turb is not None, "alpha needs to be defined to set the turbulence" 
             self.alpha_turb=alpha_turb
@@ -190,7 +191,8 @@ class gas:
         self.gas_species=gas_species
         self.Masses=Masses # total gas mass of each species
         self.masses=masses # molecular mass of each species
-
+        self.gasT=gasT # boolean of whether to use input gas temperature 
+        
         if functions_rhoz==None:
             self.functions_rhoz=[]
             for ia in range(self.N_species):
@@ -261,13 +263,37 @@ class gas:
         self.vel[2,:,:,:] = np.sqrt(   G * star.Mstar*M_sun * self.grid.rhom**2/(self.grid.rm**3)/au    )  # vphi , cm/s
         self.vkep=self.vel[2,:,:,:]*1. # store the Keplerian velocity for quick access
 
+        #################################################################
+        ##### define temperature
+        #################################################################
+
+        if self.gasT:
+            print('Use input gas temperature')
+            self.write_gas_temperature(rc, Tc, beta)
+
+            # remove line that tells radmc3d to use dust temperature
+            delete_line_from_file('radmc3d.inp','tgas_eq_tdust=1')
+            
+        else:
+            print('Use dust temperature')
+
+        
         # #### define sound speed if turbulence or keplerian deviation needed (IT NEEDS TO KNOW THE SOUND SPEED)
         if turbulence or pressure_support: # speed in cm/s
 
-            try:
-                self.Ts=np.fromfile('./dust_temperature.bdat', count=self.grid.Nr*self.grid.Nphi*self.grid.Nth+4, dtype=float)[4:].reshape( (self.grid.Nphi, self.grid.Nth, self.grid.Nr))
-            except:
-                self.Ts=np.fromfile('./dust_temperature.inp', count=self.grid.Nr*self.grid.Nphi*self.grid.Nth+4, dtype=float)[4:].reshape( (self.grid.Nphi, self.grid.Nth, self.grid.Nr))
+            ### load gas temperature
+            if self.gasT:
+                
+                self.Ts=np.loadtxt('./gas_temperature.inp', skiprows=2, max_rows=self.grid.Nphi*self.grid.Nth*self.grid.Nr).reshape( (self.grid.Nphi, self.grid.Nth, self.grid.Nr))
+                
+            ### load dust temperature
+            else:
+                # if binary file exists
+                try:
+                    self.Ts=np.fromfile('./dust_temperature.bdat', count=self.grid.Nr*self.grid.Nphi*self.grid.Nth+4, dtype=float)[4:].reshape( (self.grid.Nphi, self.grid.Nth, self.grid.Nr))
+                # if not, load normal file
+                except:
+                    self.Ts=np.loadtxt('./dust_temperature.inp', skiprows=3,  max_rows=self.gridmodel.Nphi*self.gridmodel.Nth*self.gridmodel.Nr).reshape( (self.grid.Nphi, self.grid.Nth, self.grid.Nr))
 
             # need to swap phi and Th axes
             self.Ts=np.swapaxes(self.Ts, 0,1)
@@ -296,7 +322,8 @@ class gas:
     
             self.vel[2,:,:,:] = np.sqrt(ac*self.grid.rhom*au) # cm/s
             
-            
+
+    
                 
     ###############
     ### methods ###
@@ -388,7 +415,39 @@ class gas:
                 
         file_turbulence.close() 
         
-            
+
+    def gas_temperature(self, r0, T0, beta): # in spherical coordinates
+        Tgas=T0*(self.grid.rm/r0)**beta
+        return Tgas
+
+    def write_gas_temperature(self, r0, T0, beta): # in spherical coordinates
+
+        Tgas=self.gas_temperature(r0, T0, beta)
+
+        path='gas_temperature.inp'
+        
+        file_gt=open(path,'w')
+        file_gt.write('1 \n') # iformat
+    
+        if self.grid.mirror:
+            file_gt.write(str((self.grid.Nr)*(self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
+        else:
+            file_gt.write(str((self.grid.Nr)*(2*self.grid.Nth)*(self.grid.Nphi))+' \n') # iformat n cells
+
+        for j in range(self.grid.Nphi):
+
+            # northern emisphere
+            for k in range(self.grid.Nth):
+                for i in range(self.grid.Nr):
+                    file_gt.write(str(Tgas[-(1+k),j,i])+' \n')
+            if not self.grid.mirror:
+                # southern emisphere
+                for k in range(self.grid.Nth):
+                    for i in range(self.grid.Nr):
+                        file_gt.write(str(Tgas[k,j,i])+' \n')       
+        file_gt.close() 
+
+        
 class dust:
     """
     A class used to define the dust size distribution, opacities, and density distribution d
