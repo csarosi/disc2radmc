@@ -88,8 +88,8 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     
     ### load image
     image_in_jypix, nx, ny, nf, lam, pixdeg_x, pixdeg_y = load_image(path_image, dpc, taumap=taumap)
-    istar, jstar=star_pix(nx, omega)
-    
+    istar, jstar=star_pix(nx,ny,omega)
+
     ## if alpha is given, then disc surface brightness and stellar flux are manipulated
     if alpha_dust is not None and new_lambda is not None:
         background=np.median([image_in_jypix[0,0,jstar-1,istar], image_in_jypix[0,0,jstar+1,istar], image_in_jypix[0,0,jstar,istar-1], image_in_jypix[0,0,jstar,istar+1]])
@@ -120,7 +120,8 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
         print('Fstar=', image_in_jypix[0, 0, jstar,istar])
 
     # PAD IMAGE
-    image_in_jypix_pad=fpad_image(image_in_jypix, Npixf, Npixf, nx, ny)
+    if not hasattr(Npixf, "__len__"): Npixf = [Npixf, Npixf]
+    image_in_jypix_pad=fpad_image(image_in_jypix, Npixf[1], Npixf[0], nx, ny, nf)
 
     # add background sources
     if len(background_args) != 0:
@@ -141,11 +142,11 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
         assert abs(pixdeg_x-header_pb['CDELT2'])/pixdeg_x <0.01, ('pixel size of primary beam is %1.5e and image is %1.5e. Make sure they are the same within 1 per cent'%(pixdeg_x,header_pb['CDELT2']))
 
         # check if primary beam needs to be pad
-        if header_pb['NAXIS1']<Npixf or header_pb['NAXIS2']<Npixf:
-            pb=fpad_image(pb, Npixf, Npixf,header_pb['NAXIS1'] , header_pb['NAXIS2'])
+        if header_pb['NAXIS1']<pad_x or header_pb['NAXIS2']<pad_y:
+            pb=fpad_image(pb, pad_x, pad_y,header_pb['NAXIS1'] , header_pb['NAXIS2'],1)
 
         # multiply by primary beam and set nans to zero
-        image_in_jypix_shifted=image_in_jypix_shifted*pb
+        #image_in_jypix_shifted=image_in_jypix_shifted*pb
         inans= np.isnan(image_in_jypix_shifted)
         image_in_jypix_shifted[inans]=0.0
         
@@ -192,6 +193,7 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
             I0=image_in_jypix_shifted[0,0,:,:]*1.
             for k in range(nf):
                 Cont=I0+(lam[k]-lam[0])*m
+                print(k,image_in_jypix_shifted.shape)
                 image_in_jypix_shifted[0,k,:,:]= image_in_jypix_shifted[0,k,:,:] - Cont 
         flux = np.sum(image_in_jypix_shifted[0,:,:,:])*delta_velocity
         if verbose: print("flux [Jy km/s] = ", flux)
@@ -231,13 +233,10 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
 
     header['CTYPE1'] = 'RA---TAN'
     header['CTYPE2'] = 'DEC--TAN'
-    if Npixf%2==1: ## if odd number of pixels, central pixel coincides with center
-        header['CRVAL1'] = x0
-        header['CRVAL2'] = y0
-        
-    else:   ## if even number of pixels, there is no central pixel
-        header['CRVAL1'] = x0+pixdeg_x
-        header['CRVAL2'] = y0-pixdeg_y
+
+ ## if odd number of pixels, central pixel coincides with center, else there is no central pixel
+    header['CRVAL1'] = x0 if Npixf[1]%2==1 else x0+pixdeg_x
+    header['CRVAL2'] = y0 if Npixf[0]%2==1 else y0-pixdeg_y
      
     unit = 'DEG'
     multiplier = 1
@@ -245,13 +244,13 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     header['CDELT1'] = -multiplier*pixdeg_x
     header['CUNIT1'] = unit
     # ...Zero point of coordinate system
-    header['CRPIX1'] = (Npixf)//2+1
+    header['CRPIX1'] = (Npixf[1])//2+1
 
     # DEC
     header['CDELT2'] = multiplier*pixdeg_y
     header['CUNIT2'] = unit
     # ...Zero point of coordinate system
-    header['CRPIX2'] = (Npixf)//2+1
+    header['CRPIX2'] = (Npixf[0])//2+1
 
     # FREQ
     if nf > 1:
@@ -471,23 +470,23 @@ def load_image(path_image, dpc, taumap=False):
         return image_in_jypix, nx, ny, nf, lam, pixdeg_x, pixdeg_y
 
 
-def star_pix(nx, omega):
+def star_pix(nx, ny, omega):
 
     omega= omega%360.0
 
     if nx%2==0.0: # even number of pixels
         if omega>=0.0 and omega<=90.0:
             istar=nx//2 
-            jstar=nx//2 
+            jstar=ny//2 
         elif omega>90.0 and omega<=180.0:
             istar=nx//2-1 
-            jstar=nx//2 
+            jstar=ny//2 
         elif omega>180.0 and omega<=270.0:
             istar=nx//2-1 
-            jstar=nx//2-1
+            jstar=ny//2-1
         elif omega>270.0 and omega<360.0:
             istar=nx//2 
-            jstar=nx//2 -1
+            jstar=ny//2 -1
     else:
         istar=nx//2
         jstar=nx//2
@@ -502,7 +501,7 @@ def shift_image(image, mx, my, pixdeg_x, pixdeg_y, omega=0.0 ):
 
     shiftVector=(0.0, 0.0, mvy_pix, -mvx_pix) # minus sign as left is positive 
     # cp star and remove it
-    istar, jstar=star_pix(len(image[0,0,0,:]), omega)
+    istar, jstar=star_pix(len(image[0,0,0,:]),len(image[0,0,:,0]), omega)
     Fstar=image[0,0,jstar,istar]
     # replace star with average around it. This is important if there is a disk
     image[0,0,jstar,istar]=np.median([image[0,0,jstar-1,istar], image[0,0,jstar+1,istar], image[0,0,jstar,istar-1], image[0,0,jstar,istar+1]])
@@ -514,18 +513,19 @@ def shift_image(image, mx, my, pixdeg_x, pixdeg_y, omega=0.0 ):
 
     return image_shifted
 
-def fpad_image(image_in, pad_x, pad_y, nx, ny):
-
+def fpad_image(image_in, pad_x, pad_y, nx, ny, nf):
+    
     if image_in.shape[-2:] != (pad_x,pad_y):
-        pad_image = np.zeros((1,1,pad_x,pad_y))
-        if nx%2==0 and ny%2==0: # even number of pixels
-            pad_image[0,0,
-                      pad_y//2-ny//2:pad_y//2+ny//2,
-                      pad_x//2-nx//2:pad_x//2+nx//2] = image_in[0,0,:,:]
-        else:                  # odd number of pixels
-            pad_image[0,0,
-                      pad_y//2-(ny-1)//2:pad_y//2+(ny+1)//2,
-                      pad_x//2-(nx-1)//2:pad_x//2+(nx+1)//2] = image_in[0,0,:,:]
+        pad_image = np.zeros((image_in.shape[0],image_in.shape[1],pad_x,pad_y))
+        for f in range(nf):
+            if nx%2==0 and ny%2==0: # even number of pixels
+                pad_image[0,f,
+                        pad_y//2-ny//2:pad_y//2+ny//2,
+                        pad_x//2-nx//2:pad_x//2+nx//2] = image_in[0,f,:,:]
+            else:                  # odd number of pixels
+                pad_image[0,f,
+                        pad_y//2-(ny-1)//2:pad_y//2+(ny+1)//2,
+                        pad_x//2-(nx-1)//2:pad_x//2+(nx+1)//2] = image_in[0,f,:,:]
         return pad_image
 
     else:                      # padding is not necessary as image is already the right size (potential bug if nx>pad_x)

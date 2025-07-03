@@ -65,10 +65,16 @@ class simulation:
         if Npixf==-1:
             Npixf=Npix
 
-        sau=Npix*dpix*dpc
+        sau=np.array(Npix)*dpix*dpc
+
+        image_command = image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f'%(inc,omega, PA-90.0)
+        if hasattr(sau, "__len__"):
+            image_command=image_command+' npixx %1.0f npixy %1.0f  zoomau %1.5f %1.5f %1.5f %1.5f'%(Npix[0], Npix[1], -sau[0]/2,sau[0]/2,-sau[1]/2,sau[1]/2)
+        else:
+            image_command=image_command+' npix %1.0f  sizeau %1.5f'%(Npix, sau)
 
         if hasattr(wavelength, "__len__"):
-            image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f  npix %1.0f  loadlambda sizeau %1.5f  secondorder'%(inc,omega, PA-90.0, Npix, sau)
+            image_command=image_command+' loadlambda secondorder'
             # write wavelengths into camera_wavelength_micron.inp
             Nw=len(wavelength)
             path='camera_wavelength_micron.inp'
@@ -79,13 +85,16 @@ class simulation:
             arch.close()
 
         else:
-            image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f  npix %1.0f  lambda %1.5f sizeau %1.5f  secondorder'%(inc,omega, PA-90.0, Npix, wavelength, sau)
+            image_command=image_command+' lambda %1.5f secondorder'%(wavelength)
 
         if taumap: # compute taumap instead of image. Need to modify radmc3d.inp
             append_new_line("radmc3d.inp", 'camera_tracemode = -2')
             
         if self.verbose:
-            print('image size = %1.1e au'%sau)
+            if hasattr(sau, "__len__"):
+                 print('image size = %1.1e x %1.1e au '%(sau[0],sau[1]))
+            else:
+                print('image size = %1.1e au'%sau)
             print(image_command)
             os.system(image_command)
         else:
@@ -114,24 +123,51 @@ class simulation:
     def simcube(self, dpc=1., imagename='', mol=1, line=1, vmax=30., Nnu=20, Npix=256, dpix=0.05, inc=0., PA=0., offx=0., offy=0., X0=0., Y0=0., tag='', omega=0., Npixf=-1, fstar=-1., background_args=[], primary_beam=None, vel=False, continuum_subtraction=False, vr_star=0.0):
         # vr_star in km/s
         
+        # if Npixf==-1:
+        #     Npixf=Npix
+
+        # transition='iline '+str(line)+' imolspec '+str(mol)+' widthkms %1.5f '%(vmax)+' vkms 0.0 linenlam '+str(Nnu)
+        # sau=Npix*dpix*dpc
+        # image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f '%(inc,omega, PA-90.0)+transition+' npix %1.0f  sizeau %1.5f  doppcatch noscat'%(Npix, sau)
+        # if self.verbose:
+        #     print('image size = %1.1e au'%sau)
+        #     print(image_command)
+        #     os.system(image_command)
+        # else:
+        #     os.system(image_command+'  > simimgaes.log')
+
+
+        # pathin ='image_'+imagename+'_'+tag+'.out'
+        # pathout='images/image_'+imagename+'_'+tag+'.fits'
+        # os.system('mv image.out '+pathin)
+        
         if Npixf==-1:
             Npixf=Npix
-
         transition='iline '+str(line)+' imolspec '+str(mol)+' widthkms %1.5f '%(vmax)+' vkms 0.0 linenlam '+str(Nnu)
-        sau=Npix*dpix*dpc
-        image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f '%(inc,omega, PA-90.0)+transition+' npix %1.0f  sizeau %1.5f  doppcatch noscat'%(Npix, sau)
+        sau=np.array(Npix)*dpix*dpc
+
+        image_command='radmc3d image incl %1.5f  phi  %1.5f posang %1.5f '%(inc,omega, PA-90.0)+transition
+
+        if hasattr(sau, "__len__"):
+            image_command=image_command+' npixx %1.0f npixy %1.0f  zoomau %1.5f %1.5f %1.5f %1.5f'%(Npix[0], Npix[1], -sau[0]/2,sau[0]/2,-sau[1]/2,sau[1]/2)
+        else:
+            image_command=image_command+' npix %1.0f  sizeau %1.5f'%(Npix, sau)
+        
+        image_command = image_command + ' doppcatch noscat'
         if self.verbose:
-            print('image size = %1.1e au'%sau)
+            if hasattr(sau, "__len__"):
+                 print('image size = %1.1e x %1.1e au '%(sau[0],sau[1]))
+            else:
+                print('image size = %1.1e au'%sau)
             print(image_command)
             os.system(image_command)
         else:
             os.system(image_command+'  > simimgaes.log')
 
-
         pathin ='image_'+imagename+'_'+tag+'.out'
         pathout='images/image_'+imagename+'_'+tag+'.fits'
         os.system('mv image.out '+pathin)
-        
+
         convert_to_fits(pathin, pathout, Npixf, dpc, mx=offx, my=offy, x0=X0, y0=Y0, omega=omega,  fstar=fstar, continuum_subtraction=continuum_subtraction, background_args=background_args, tag=tag, primary_beam=primary_beam, verbose=self.verbose, vr_star=vr_star, vel=vel)
 
     def simsed(self, wavelengths=np.logspace(-1,2, 100), dpc=100., outputfile='sed.txt', inc=0., PA=0., omega=0., sizeau=0. ):
@@ -763,12 +799,7 @@ class dust:
                             file_dust.write(str(self.rho_d[ia,k,j,i])+' \n')
         file_dust.close()
         
-
-
-
-
         
-
 class star:
     """
     A class to define the star and companions
@@ -1034,7 +1065,7 @@ class physical_grid:
 
 
         self.Ncells=self.Nr*self.Nphi*self.Nth
-        if self.mirror==False: self.Ncells=self.Ncells*2
+        if self.mirror==False: self.Ncells=self.Ncells*2 #If not mirrored, double requested number of cells because you will double the grid Nth
 
 
         self.thetam, self.phim, self.rm=np.meshgrid(self.th, self.phi, self.r, indexing='ij' ) # Theta is ordered from midplane to North pole. Theta is still the angle from the equator.
