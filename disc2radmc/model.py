@@ -208,7 +208,9 @@ class gas:
     A class used to define the gas species, densities and velocities
     """
 
-    def __init__(self, gas_species=None, star=None, grid=None, Masses=None, masses=None, functions_sigma=None, pars_sigma=None, h=0.05, r0=100., gamma=1.,turbulence=False, alpha_turb=None, functions_rhoz=None, mu=28. , vr=0.0, pressure_support=False, gasT=False, rc=100, Tc=20, beta=-0.5):
+    def __init__(self, gas_species=None, star=None, grid=None, Masses=None, masses=None, functions_sigma=None, pars_sigma=None,
+                  h=0.05, r0=100., gamma=1.,turbulence=False, alpha_turb=None, functions_rhoz=None, mu=28. , vr=0.0, pressure_support=False,
+                pressure_scale_height = False, h_0 = 1., gasT=False, rc=100, Tc=20, beta=-0.5):
         assert gas_species is not None, "Gas species need to be defined"
         assert star is not None, "star needs to be defined as its mass will set the rotation speed"
         assert grid is not None, "grid object needed to define gas density distribution"
@@ -234,7 +236,7 @@ class gas:
         self.Masses=Masses # total gas mass of each species
         self.masses=masses # molecular mass of each species
         self.gasT=gasT # boolean of whether to use input gas temperature 
-        
+        #self.mu = mu # Mean molecualar weight of gas (used for sound speed calculations)
         if functions_rhoz==None:
             self.functions_rhoz=[]
             for ia in range(self.N_species):
@@ -254,56 +256,12 @@ class gas:
             file_lines.write(self.gas_species[ia]+'\t leiden \t 0 \t  0 \t 0 \n') # LTE, no collisional partners
         file_lines.close()
 
-
-
-        # ### grid        
+        # Note, grid is        
         # self.thetam, self.phim, self.rm=np.meshgrid(self.grid.th, self.grid.phi, self.grid.r, indexing='ij' ) # Theta is ordered from midplane to North pole. Theta is still the angle from the equator.
         # self.dthm, self.dphim, self.drm = np.meshgrid(self.grid.dth, self.grid.dphi, self.grid.dr, indexing='ij' )
 
         # self.rhom=rm*np.cos(self.thetam) 
         # self.zm=rm*np.sin(self.thetam)
-
-        #################################################################    
-        ### define the density field
-        #################################################################
-
-        self.dens_g=np.zeros((self.N_species,self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # density field (only norther emisphere)
-
-       
-        # define density
-        
-        if functions_sigma is not None:
-            assert len(functions_sigma)==self.N_species, "functions_sigma should be an array of function with a length equal to the number of species"
-
-            for ia in range(self.N_species):
-                M_gas_temp= 0.0
-            
-                if self.grid.Nth>1: # more than one cell per emisphere
-                    self.dens_g[ia,:,:,:]=self.rho_3d_dens(self.grid.rhom, self.grid.phim, self.grid.zm, h, r0, gamma, self.functions_rhoz[ia], functions_sigma[ia], *pars_sigma[ia])
-
-                
-                elif self.grid.Nth==1:# one cell
-
-                    self.dens_g[ia,:,:,:]=functions_sigma[ia](self.grid.rhom, self.grid.phim, *pars_sigma[ia])/(self.grid.dth[0]*self.grid.rhom) # rho_3d_dens(rho, 0.0, 0.0, hs, sigmaf, *args )
-            
-                M_gas_temp=2.*np.sum(self.dens_g[ia,:,:,:]*(self.grid.dphim*self.grid.rhom)*(self.grid.drm)*(self.grid.dthm*self.grid.rm))*au**3.0
-                self.dens_g[ia,:,:,:]=self.dens_g[ia,:,:,:]*self.Masses[ia]/M_gas_temp*M_earth /self.masses[ia] # 1/cm3
-
-        else:
-            print('No surface density function provided. Gas density set to zero.')
-        #################################################################
-        ##### define velocity field
-        #################################################################
-        if grid.mirror:
-            self.vel=np.zeros((3,self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # gas velocity field (only norther emisphere)
-        else:
-            self.vel=np.zeros((3,2*self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # gas velocity field (only norther emisphere)
-
-
-        self.vel[0,:,:,:] = vr # vr, cm/s
-        self.vel[1,:,:,:] = 0.0 # vtheta, cm/s
-        self.vel[2,:,:,:] = np.sqrt(   G * star.Mstar*M_sun * self.grid.rho_fullm**2/(self.grid.r_fullm**3)/au    )  # vphi , cm/s
-        self.vkep=self.vel[2,:,:,:]*1. # store the Keplerian velocity for quick access
 
         #################################################################
         ##### define temperature
@@ -319,10 +277,12 @@ class gas:
         else:
             print('Use dust temperature')
 
+        #############################################################################
+        #### define sound speed if turbulence, keplerian deviation,
+        #### or pressure scale height needed (IT NEEDS TO KNOW THE SOUND SPEED)
+        #############################################################################
         
-        # #### define sound speed if turbulence or keplerian deviation needed (IT NEEDS TO KNOW THE SOUND SPEED)
-        
-        if turbulence or pressure_support: # speed in cm/s
+        if turbulence or pressure_support or pressure_scale_height: # speed in cm/s
 
             # the lines below that load the gas or dust temperature could be made into a function to avoid code repetition
             
@@ -363,6 +323,57 @@ class gas:
             if turbulence:
                 self.turbulence=np.sqrt(self.alpha_turb)*self.cs # Nth, Nphi, Nr
 
+        #################################################################    
+        ### define the density field
+        #################################################################
+
+        self.dens_g=np.zeros((self.N_species,self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # density field (only norther emisphere
+        # define density
+        
+        if functions_sigma is not None:
+            assert len(functions_sigma)==self.N_species, "functions_sigma should be an array of function with a length equal to the number of species"
+
+            for ia in range(self.N_species):
+                M_gas_temp= 0.0
+            
+                if self.grid.Nth>1: # more than one cell per emisphere
+                    if pressure_scale_height and gasT:
+                        
+                        self.dens_g[ia,:,:,:]=self.rho_3d_dens_psh(self.grid.rhom, self.grid.phim, self.grid.zm,
+                                                                   h_0, star.Mstar*M_sun, rc, Tc, beta, mu,
+                                                                   self.functions_rhoz[ia],
+                                                                   functions_sigma[ia], *pars_sigma[ia])
+                    else:
+                        if pressure_scale_height: print('Warning: Cannot use pressure scale height without a user-specified gas temperature distribution. Using default gas vertical distribution instead')
+                        
+                        self.dens_g[ia,:,:,:]=self.rho_3d_dens(self.grid.rhom, self.grid.phim, self.grid.zm,
+                                                                h, r0, gamma,self.functions_rhoz[ia],
+                                                                functions_sigma[ia],*pars_sigma[ia])
+                
+                elif self.grid.Nth==1:# one cell
+
+                    self.dens_g[ia,:,:,:]=functions_sigma[ia](self.grid.rhom, self.grid.phim, *pars_sigma[ia])/(self.grid.dth[0]*self.grid.rhom) # rho_3d_dens(rho, 0.0, 0.0, hs, sigmaf, *args )
+            
+                M_gas_temp=2.*np.sum(self.dens_g[ia,:,:,:]*(self.grid.dphim*self.grid.rhom)*(self.grid.drm)*(self.grid.dthm*self.grid.rm))*au**3.0
+               
+                self.dens_g[ia,:,:,:]=self.dens_g[ia,:,:,:]*self.Masses[ia]/M_gas_temp*M_earth /self.masses[ia] # 1/cm3
+        else:
+            print('No surface density function provided. Gas density set to zero.')
+
+        #################################################################
+        ##### define velocity field
+        #################################################################
+        if grid.mirror:
+            self.vel=np.zeros((3,self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # gas velocity field (only norther emisphere)
+        else:
+            self.vel=np.zeros((3,2*self.grid.Nth,self.grid.Nphi,self.grid.Nr)) # gas velocity field (only norther emisphere)
+
+
+        self.vel[0,:,:,:] = vr # vr, cm/s
+        self.vel[1,:,:,:] = 0.0 # vtheta, cm/s
+        self.vel[2,:,:,:] = np.sqrt(G * star.Mstar*M_sun * self.grid.rho_fullm**2/(self.grid.r_fullm**3)/au    )  # vphi , cm/s
+        self.vkep=self.vel[2,:,:,:]*1. # store the Keplerian velocity for quick access
+
         # this could also be moved to a function
         if pressure_support:
 
@@ -375,8 +386,18 @@ class gas:
                 self.dens_g_full[:, :self.grid.Nth ,:,:]=self.dens_g[:,::-1,:,:] # flipped northern emisphere
                 self.dens_g_full[:, self.grid.Nth: ,:,:]=self.dens_g[:, : ,:,:] # southern emisphere
 
+            #  for ia in range(self.N_species):
+            #     M_gas_temp= 0.0
+            
+            #     if self.grid.Nth>1: # more than one cell per emisphere
+            #         if pressure_scale_height and gasT:
+                        
+            #             self.dens_g[ia,:,:,:]=self.rho_3d_dens_psh(self.grid.rhom, self.grid.phim, self.grid.zm,
+            #                                                        h_0, star.Mstar*M_sun, rc, Tc, beta, mu,
+            #                                                        self.functions_rhoz[ia],
+            #                                                        functions_sigma[ia], *pars_sigma[ia])
 
-            self.P=np.sum(self.dens_g_full*self.masses, axis=0)*self.cs**2. # cgs
+            self.P=np.sum(self.masses*self.dens_g_full, axis=0)*self.cs**2. # cgs
             
             ### dP/dr = dP/dR * dR/dr + dP/dtheta * dtheta/dr (derived using r,z as a function of R, theta)
             self.dPdr=np.gradient(self.P, self.grid.r*au, axis=2)*np.cos(self.grid.theta_fullm) - np.gradient(self.P, self.grid.th_full, axis=0)*np.sin(self.grid.theta_fullm)/(self.grid.r_fullm*au) # cgs
@@ -388,20 +409,30 @@ class gas:
             ac[ac<0.]=0.
     
             self.vel[2,:,:,:] = np.sqrt(ac*self.grid.rho_fullm*au) # cm/s
-            
-
-    
                 
     ###############
     ### methods ###
     ###############
-
     @staticmethod
-    def rho_3d_dens(rho, phi, z, h, r0, gamma,  function_rhoz, function_sigma, *arguments ):
+    def rho_3d_dens_psh(rho, phi, z, h_0, M_star, rc, Tc, beta, mu, function_rhoz, function_sigma,  *arguments):
+        #Density distribution using pressure scale height 
+        #Note, current implementation assumes vertically isothermal, so T is only a fn of rho, not z or phi 
+        T_rho = gas.gas_temperature(rho, rc, Tc, beta)  
+        Omega_R = np.sqrt(G * M_star/(rho*au)**3) #Keplerian Frequency, s^{1} #In cylindrical
+        cs_rho = np.sqrt(K*T_rho/(mu * mp)) # cm/s  c_s is originally calculated in spherical coordinates, so for now, we recalcuate it using the vertically isothermal assumption
+        H_p = h_0 * cs_rho/Omega_R # cm.
+        print(H_p)
+        H_p = H_p/au # au
+        print(H_p) 
+        return function_sigma(rho,phi, *arguments)*function_rhoz(z,H_p)
+    @staticmethod
+    def rho_3d_dens(rho, phi, z, h, r0, gamma, function_rhoz, function_sigma, *arguments):
         H=h*r0*(rho/r0)**gamma # au
         return function_sigma(rho,phi, *arguments)*function_rhoz(z,H)
-    
-
+    @staticmethod
+    def gas_temperature(r, r0, T0, beta): # in spherical coordinates (or cylindrical coordinates with theta = 0, since then r_cylindrical = r cos(theta) = r)
+        Tgas=T0*(r/r0)**beta
+        return Tgas
     def write_density(self):
 
         # Save species
@@ -477,14 +508,9 @@ class gas:
                 
         file_turbulence.close() 
         
+    def write_gas_temperature(self, r0, T0, beta): 
 
-    def gas_temperature(self, r0, T0, beta): # in spherical coordinates
-        Tgas=T0*(self.grid.rm/r0)**beta
-        return Tgas
-
-    def write_gas_temperature(self, r0, T0, beta): # in spherical coordinates
-
-        Tgas=self.gas_temperature(r0, T0, beta)
+        Tgas= self.gas_temperature(self.grid.rm, r0, T0, beta)  # in spherical coordinates
 
         path='gas_temperature.inp'
         
