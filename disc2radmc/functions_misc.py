@@ -11,6 +11,10 @@ from astropy.convolution import convolve_fft
 from scipy.ndimage.interpolation import shift
 from scipy import interpolate
 
+from astroquery.lamda import parse_lamda_datafile
+from astropy.constants import c
+import astropy.units as u
+
 import os
 
 # function to define vertical distribution
@@ -83,13 +87,14 @@ def Intextpol(x,y,xi):
 
 ### functions to manipulate images
 
-def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y0=0.0, omega=0.0, fstar=-1.0, vel=False, continuum_subtraction=False, background_args=[], tag='', primary_beam=None, alpha_dust=None, new_lambda=None,verbose=False, taumap=False, fdisc=None, vr_star=0.):
+def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y0=0.0, omega=0.0, fstar=-1.0,
+                    vel=False, mol=None, line=None, continuum_subtraction=False,  vr_star=0.,specsys = 'BARYCENT',
+                    background_args=[], tag='', primary_beam=None, alpha_dust=None, new_lambda=None,verbose=False,
+                     taumap=False, fdisc=None, write = True):
     # alpha is defined as the spectral index in frequency space, and thus is positive for a typical disc and star at mm wavelengths
-    
     ### load image
     image_in_jypix, nx, ny, nf, lam, pixdeg_x, pixdeg_y = load_image(path_image, dpc, taumap=taumap)
     istar, jstar=star_pix(nx,ny,omega)
-
     ## if alpha is given, then disc surface brightness and stellar flux are manipulated
     if alpha_dust is not None and new_lambda is not None:
         background=np.median([image_in_jypix[0,0,jstar-1,istar], image_in_jypix[0,0,jstar+1,istar], image_in_jypix[0,0,jstar,istar-1], image_in_jypix[0,0,jstar,istar+1]])
@@ -120,8 +125,9 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
         print('Fstar=', image_in_jypix[0, 0, jstar,istar])
 
     # PAD IMAGE
-    if not hasattr(Npixf, "__len__"): Npixf = [Npixf, Npixf]
-    image_in_jypix_pad=fpad_image(image_in_jypix, Npixf[1], Npixf[0], nx, ny, nf)
+    if Npixf==-1:
+        Npixf=[nx,ny]
+    image_in_jypix_pad=fpad_image(image_in_jypix, Npixf[0], Npixf[1], nx, ny, nf)
 
     # add background sources
     if len(background_args) != 0:
@@ -163,37 +169,36 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     ### image cube
     elif not taumap:
 
-        # get line rest wavelength
-        # assumes line is centred so v=0 at center of the grid
-        mid = nf // 2
-        if nf % 2 == 0:
-            lam_line=0.5 * (lam[mid - 1] + lam[mid]) # mu
-        else:
-            lam_line=lam[mid] # mu
-
         # get line rest frequency
-        freq_line=cc*1.0e4/lam_line # Hz
 
+        f=open('lines.inp','r')
+        iformat=int(f.readline())
+        n_mol = int(f.readline())
+        for i in range(1,mol+1):
+            mol_name = str(f.readline().split('\t')[0])
+        f.close()
+        nu_rest_GHz = parse_lamda_datafile('molecule_'+mol_name + '.inp')[1][line-1]['Frequency']*u.GHz
+        nu_rest_Hz= nu_rest_GHz.to(u.Hz)
+        freq_line = nu_rest_Hz.value #rest wavelength in GHz
+        lam_rest_um= (c/nu_rest_Hz).to(u.um) #rest wavelength in um
+        lam_line= lam_rest_um.value
         # contruct velocity array
-        vels=(lam-lam_line)/lam_line*cc*1e-5 # km/s
-        
-        # apply velocity doppler shift
-        vels=vels+vr_star
+        vels = (c.to(u.km/u.s)*(nu_rest_Hz-((c/(lam*u.um)).to(u.Hz)))/nu_rest_Hz)#Converting to vels using radio velcity convention
+        vels=vels.value+vr_star #correct for systemic velocity (stellar radial velocity)
 
-        # recalculate wavelength grid
-        lam=lam_line*(1.+vels*1.0e5/cc)
-        freq=cc*1e4/lam # Hz
-        
-        delta_velocity = vels[1]-vels[0] # km/s
-        delta_freq= freq[1] - freq[0]    # Hz
+        # recalculate wavelength and frequency grids
+        lam=lam_line/(1.-vels*1.0e5/cc) #Converting from vels back to wavelength (nm) using radio velcity convention
+        freq=freq_line*(1.-vels*1.0e5/cc) #Converting from vels back to frequency (GHz) using radio velcity convention
+        delta_velocity = vels[1]-vels[0] # km/
+        delta_freq= freq[1] - freq[0]    # GHz 
 
         if continuum_subtraction: # subtract continuum assuming it varies linearly with wavelength
             if verbose: print('subtracting continuum')
             m=(image_in_jypix_shifted[0,-1,:,:]- image_in_jypix_shifted[0,0,:,:])/(lam[-1]-lam[0])
-            I0=image_in_jypix_shifted[0,0,:,:]*1.
-            for k in range(nf):
+            I0=image_in_jypix_shifted[0,0,:,:]*1
+            for k in range(nf): 
                 Cont=I0+(lam[k]-lam[0])*m
-                print(k,image_in_jypix_shifted.shape)
+                # print(k,image_in_jypix_shifted.shape)
                 image_in_jypix_shifted[0,k,:,:]= image_in_jypix_shifted[0,k,:,:] - Cont 
         flux = np.sum(image_in_jypix_shifted[0,:,:,:])*delta_velocity
         if verbose: print("flux [Jy km/s] = ", flux)
@@ -204,14 +209,20 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     header = fits.Header()
     #header['SIMPLE']='T'
     header['BITPIX']=-32
-    # all the NAXIS are created automatically header['NAXIS']=2
+    # all the NAXIS are created automatically when fits is written. 
+    if not write:
+        data_shape = image_in_jypix_shifted.shape
+        header['NAXIS'] = len(data_shape)
+        for i in range(1,len(data_shape)+1):
+            header['NAXIS'+str(i)] = data_shape[-i]
     header['OBJECT']=tag
     header['EPOCH']=2000.0
     # header['LONPOLE']=180.0
 
     header['EQUINOX']=2000.0
-    header['SPECSYS']='BARYCENT'
-    header['VELREF']=258 # FROM ALMA cube / 1 LSR, 2 HEL, 3 OBS, +256 Radio 
+    header['SPECSYS']=specsys
+
+    header['VELREF']=258 if specsys=='BARYCENT' else 257# FROM ALMA cube / 1 LSR, 2 HEL, 3 OBS, +256 Radio 
     if nf==1:
         header['CTYPE3']='FREQ'
         header['CRPIX3'] = 1.0
@@ -234,10 +245,10 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     header['CTYPE1'] = 'RA---TAN'
     header['CTYPE2'] = 'DEC--TAN'
 
- ## if odd number of pixels, central pixel coincides with center, else there is no central pixel
+## if odd number of pixels, central pixel coincides with center, else there is no central pixel
     header['CRVAL1'] = x0 if Npixf[1]%2==1 else x0+pixdeg_x
     header['CRVAL2'] = y0 if Npixf[0]%2==1 else y0-pixdeg_y
-     
+    
     unit = 'DEG'
     multiplier = 1
     # RA
@@ -255,36 +266,41 @@ def convert_to_fits(path_image, path_fits, Npixf, dpc, mx=0.0, my=0.0, x0=0.0, y
     # FREQ
     if nf > 1:
         if vel==True:  ### not fully tested
-            print(lam[int(nf//2)+1])
+            # print(lam[int(nf//2)+1])
             # multiple frequencies - set up the header keywords to define the
             #    third axis as frequency
             header['CTYPE3'] = 'VELOCITY'
             header['CUNIT3'] = 'km/s'
-            header['CRPIX3'] = int(nf//2)+1
-            if nf%2==0: # even
-                header['CRVAL3'] = delta_velocity/2.+vr_star
-            else:
-                header['CRVAL3'] = 0.0 + vr_star
+            header['CRPIX3'] = 1
+            header['CRVAL3'] = vels[0]
             header['CDELT3']  = delta_velocity
             header['RESTFRQ'] = freq_line
-
+            # header['ALTRVAL'] = freq_line
+            # header['ALTRVAL'] =  1 # / Alternate frequency reference pixel 
         else:
             header['CTYPE3'] = 'FREQ'
-            header['CUNIT3'] = 'HZ'
-            header['CRPIX3'] = int(nf//2)+1
-            header['CRVAL3'] = freq[nf//2]
-            # Calculate the frequency step, assuming equal steps between all:
+            header['CUNIT3']= 'Hz'
+            header['CRPIX3'] = 1
+            header['CRVAL3'] = freq[0]
             header['CDELT3']  = delta_freq
             header['RESTFRQ'] = freq_line
-    else:                # only one frequency
+    else:   # only one frequency
         header['RESTFRQ'] = reffreq
         header['CUNIT3'] = 'Hz'
 
     # Make a FITS file!
-   
     image_in_jypix_float=image_in_jypix_shifted.astype(np.float32)
-    fits.writeto(path_fits, image_in_jypix_float, header, output_verify='fix', overwrite=True)
-
+    
+    if write:
+        fits.writeto(path_fits, image_in_jypix_float, header, output_verify='fix', overwrite=True)
+    
+    #Adding NAXIS keywords for header, since they are normally added by fits.writeto
+    data_shape = image_in_jypix_shifted.shape
+    header['NAXIS'] = len(data_shape)
+    for i in range(1,len(data_shape)+1):
+        header['NAXIS'+str(i)] = data_shape[-i]
+    
+    return image_in_jypix_shifted, header, path_fits
 
 
 def xyarray(Np, ps_arcsec):
@@ -316,7 +332,7 @@ def Convolve_beam(path_image, BMAJ, BMIN, BPA, tag_out=''):
     
     data1 	= get_last2d(fit1[0].data) # [0,0,:,:] # extract image matrix
 
-    print(np.shape(data1))
+    # print(np.shape(data1))
 
     header1	= fit1[0].header
     ps_deg=float(header1['CDELT2'])
@@ -380,7 +396,7 @@ def Convolve_beam_cube(path_image, BMAJ, BMIN, BPA):
     
     data1 	= fit1[0].data # [0,0,:,:] # extract image matrix
 
-    print(np.shape(data1))
+    # print(np.shape(data1))
 
     header1	= fit1[0].header
     ps_deg=float(header1['CDELT2'])
@@ -448,8 +464,7 @@ def load_image(path_image, dpc, taumap=False):
     f.close()
 
     f=np.loadtxt(path_image, skiprows=4) # empty line is skipped
-
-    lam=f[:nf]
+    lam=f[:nf] 
         
     image=np.zeros((1,nf,ny,nx), dtype=float)
     image[0,:,:,:] = f[nf:].reshape(nf, ny, nx)
@@ -514,18 +529,14 @@ def shift_image(image, mx, my, pixdeg_x, pixdeg_y, omega=0.0 ):
     return image_shifted
 
 def fpad_image(image_in, pad_x, pad_y, nx, ny, nf):
-    
-    if image_in.shape[-2:] != (pad_x,pad_y):
+    if image_in.shape[-2:] != (pad_y,pad_x):
         pad_image = np.zeros((image_in.shape[0],image_in.shape[1],pad_x,pad_y))
         for f in range(nf):
-            if nx%2==0 and ny%2==0: # even number of pixels
-                pad_image[0,f,
-                        pad_y//2-ny//2:pad_y//2+ny//2,
-                        pad_x//2-nx//2:pad_x//2+nx//2] = image_in[0,f,:,:]
-            else:                  # odd number of pixels
-                pad_image[0,f,
-                        pad_y//2-(ny-1)//2:pad_y//2+(ny+1)//2,
-                        pad_x//2-(nx-1)//2:pad_x//2+(nx+1)//2] = image_in[0,f,:,:]
+            nx_shift = 0 if nx%2==0 else 1 #handles different way of padding array depending on if even or odd
+            ny_shift = 0 if ny%2==0 else 1
+            pad_image[0,f,
+                    pad_y//2-(ny-ny_shift)//2:pad_y//2+(ny+ny_shift)//2,
+                    pad_x//2-(nx-nx_shift)//2:pad_x//2+(nx+nx_shift)//2] = image_in[0,f,:,:]
         return pad_image
 
     else:                      # padding is not necessary as image is already the right size (potential bug if nx>pad_x)
